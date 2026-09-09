@@ -39,6 +39,26 @@ async def main():
 
             print("\nMISSION:")
             print(mission)
+            attempt = await session.call_tool(
+                "submit_attempt",
+                {
+                    "skill": "Python",
+                    "mission": "Build a Number Guessing Game",
+                    "learner_response": (
+                        "import random\n\n"
+                        "number = random.randint(1, 10)\n"
+                        "guess = int(input('Guess the number: '))\n\n"
+                        "if guess == number:\n"
+                        "    print('Correct!')\n"
+                        "else:\n"
+                        "    print('Try again!')"
+                    ),
+                    "attempt_type": "code",
+                },
+            )
+
+            print("\nATTEMPT:")
+            print(attempt)            
 
 
 if __name__ == "__main__":

@@ -93,6 +93,49 @@ def create_mission(
         "mission": mission,
         "next_action": "Complete the mission and submit the attempt.",
     }
+@mcp.tool()
+def submit_attempt(
+    skill: str,
+    mission: str,
+    learner_response: str,
+    attempt_type: str = "text",
+) -> dict:
+    """
+    Submit a learner's work for evaluation.
+
+    Args:
+        skill: The skill being practiced.
+        mission: The mission the learner was assigned.
+        learner_response: The learner's actual work or answer.
+        attempt_type: The type of submission: code, text, or answer.
+    """
+    valid_attempt_types = {"code", "text", "answer"}
+
+    normalized_type = attempt_type.strip().lower()
+
+    if normalized_type not in valid_attempt_types:
+        return {
+            "status": "error",
+            "message": (
+                "Invalid attempt_type. Choose one of: "
+                "code, text, or answer."
+            ),
+        }
+
+    if not learner_response.strip():
+        return {
+            "status": "error",
+            "message": "learner_response cannot be empty.",
+        }
+
+    return {
+        "status": "submitted",
+        "skill": skill,
+        "mission": mission,
+        "attempt_type": normalized_type,
+        "learner_response": learner_response,
+        "next_action": "Evaluate the learner's attempt.",
+    }
 
 
 if __name__ == "__main__":
