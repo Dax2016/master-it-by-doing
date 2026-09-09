@@ -1,4 +1,5 @@
 import asyncio
+import json
 
 from mcp import ClientSession
 from mcp.client.streamable_http import streamablehttp_client
@@ -121,50 +122,42 @@ async def main():
 
             print("\nWEAK ATTEMPT EVALUATION:")
             print(weak_evaluation)
+
             # ---------------------------------------------------------
             # 7. IDENTIFY WEAKNESSES
             # ---------------------------------------------------------
+            weak_evaluation_data = json.loads(
+                weak_evaluation.content[0].text
+            )
+
             weakness_analysis = await session.call_tool(
                 "identify_weaknesses",
                 {
                     "skill": "Python",
-                    "evaluation": {
-                        "status": "evaluated",
-                        "strengths": [
-                            "Result feedback"
-                        ],
-                        "weaknesses": [
-                            "Random number generation",
-                            "Learner input",
-                            "Guess comparison",
-                            "Conditional logic",
-                            "Python implementation",
-                        ],
-                    },
+                    "evaluation": weak_evaluation_data,
                 },
             )
 
             print("\nWEAKNESS ANALYSIS:")
             print(weakness_analysis)
+
             # ---------------------------------------------------------
             # 8. GENERATE TARGETED EXERCISE
             # ---------------------------------------------------------
+            weakness_data = json.loads(
+                weakness_analysis.content[0].text
+            )
+
             targeted_exercise = await session.call_tool(
                 "generate_targeted_exercise",
                 {
                     "skill": "Python",
-                    "weaknesses": [
-                        "Random number generation",
-                        "Learner input",
-                        "Guess comparison",
-                        "Conditional logic",
-                        "Python implementation",
-                    ],
+                    "weaknesses": weakness_data["weaknesses"],
                 },
             )
 
             print("\nTARGETED EXERCISE:")
-            print(targeted_exercise)                        
+            print(targeted_exercise)
 
 
 if __name__ == "__main__":
