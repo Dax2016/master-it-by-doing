@@ -18,7 +18,7 @@ async def main():
             for tool in tools.tools:
                 print(f"- {tool.name}")
 
-            result = await session.call_tool(
+            goal = await session.call_tool(
                 "create_learning_goal",
                 {
                     "skill": "Python",
@@ -26,8 +26,19 @@ async def main():
                 },
             )
 
-            print("\nRESULT:")
-            print(result)
+            print("\nLEARNING GOAL:")
+            print(goal)
+
+            mission = await session.call_tool(
+                "create_mission",
+                {
+                    "skill": "Python",
+                    "learner_level": "beginner",
+                },
+            )
+
+            print("\nMISSION:")
+            print(mission)
 
 
 if __name__ == "__main__":
