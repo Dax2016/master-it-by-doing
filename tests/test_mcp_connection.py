@@ -145,7 +145,26 @@ async def main():
             )
 
             print("\nWEAKNESS ANALYSIS:")
-            print(weakness_analysis)            
+            print(weakness_analysis)
+            # ---------------------------------------------------------
+            # 8. GENERATE TARGETED EXERCISE
+            # ---------------------------------------------------------
+            targeted_exercise = await session.call_tool(
+                "generate_targeted_exercise",
+                {
+                    "skill": "Python",
+                    "weaknesses": [
+                        "Random number generation",
+                        "Learner input",
+                        "Guess comparison",
+                        "Conditional logic",
+                        "Python implementation",
+                    ],
+                },
+            )
+
+            print("\nTARGETED EXERCISE:")
+            print(targeted_exercise)                        
 
 
 if __name__ == "__main__":

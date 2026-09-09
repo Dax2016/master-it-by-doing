@@ -327,6 +327,61 @@ def identify_weaknesses(
         ),
         "next_action": "Generate a targeted exercise for the weaknesses.",
     }
+@mcp.tool()
+def generate_targeted_exercise(
+    skill: str,
+    weaknesses: list[str],
+) -> dict:
+    """
+    Generate a practical exercise targeting the learner's weaknesses.
+
+    Args:
+        skill: The skill being practiced.
+        weaknesses: The learner's identified skill gaps.
+    """
+    if not weaknesses:
+        return {
+            "status": "error",
+            "message": "At least one weakness is required.",
+        }
+
+    normalized_skill = skill.strip().lower()
+
+    if normalized_skill == "python":
+        exercise = {
+            "title": "Build a Guessing Game Core",
+            "objective": (
+                "Practice random number generation, learner input, "
+                "comparison, and conditional logic."
+            ),
+            "instructions": [
+                "Generate a random number between 1 and 10.",
+                "Ask the user to guess the number.",
+                "Compare the guess with the generated number.",
+                "Tell the user whether the guess is correct.",
+            ],
+            "targeted_skills": weaknesses,
+        }
+    else:
+        exercise = {
+            "title": f"Practice {skill.title()} Fundamentals",
+            "objective": (
+                f"Complete a practical exercise focused on your "
+                f"identified {skill.title()} skill gaps."
+            ),
+            "instructions": [
+                f"Practice: {weakness}"
+                for weakness in weaknesses
+            ],
+            "targeted_skills": weaknesses,
+        }
+
+    return {
+        "status": "created",
+        "skill": skill,
+        "exercise": exercise,
+        "next_action": "Complete the targeted exercise and submit the attempt.",
+    }
 
 
 if __name__ == "__main__":
