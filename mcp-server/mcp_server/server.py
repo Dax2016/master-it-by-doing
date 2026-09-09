@@ -1,5 +1,6 @@
 from mcp.server.fastmcp import FastMCP
 
+
 mcp = FastMCP("Master It By Doing")
 
 
@@ -93,6 +94,8 @@ def create_mission(
         "mission": mission,
         "next_action": "Complete the mission and submit the attempt.",
     }
+
+
 @mcp.tool()
 def submit_attempt(
     skill: str,
@@ -135,6 +138,149 @@ def submit_attempt(
         "attempt_type": normalized_type,
         "learner_response": learner_response,
         "next_action": "Evaluate the learner's attempt.",
+    }
+
+
+@mcp.tool()
+def evaluate_attempt(
+    skill: str,
+    mission: str,
+    learner_response: str,
+    attempt_type: str = "text",
+) -> dict:
+    """
+    Evaluate a learner's submitted work against a practical mission.
+
+    Args:
+        skill: The skill being practiced.
+        mission: The mission the learner was assigned.
+        learner_response: The learner's actual work or answer.
+        attempt_type: The type of submission: code, text, or answer.
+    """
+    valid_attempt_types = {"code", "text", "answer"}
+
+    normalized_type = attempt_type.strip().lower()
+
+    if normalized_type not in valid_attempt_types:
+        return {
+            "status": "error",
+            "message": (
+                "Invalid attempt_type. Choose one of: "
+                "code, text, or answer."
+            ),
+        }
+
+    if not learner_response.strip():
+        return {
+            "status": "error",
+            "message": "learner_response cannot be empty.",
+        }
+
+    response = learner_response.strip()
+
+    # Mission-specific evaluation criteria.
+    if (
+        skill.strip().lower() == "python"
+        and "number guessing" in mission.strip().lower()
+    ):
+        criteria = [
+            {
+                "name": "Random number generation",
+                "passed": (
+                    "random" in response.lower()
+                    and "randint" in response.lower()
+                ),
+            },
+            {
+                "name": "Learner input",
+                "passed": "input(" in response.lower(),
+            },
+            {
+                "name": "Guess comparison",
+                "passed": (
+                    "==" in response
+                    or "!=" in response
+                    or "<" in response
+                    or ">" in response
+                ),
+            },
+            {
+                "name": "Conditional logic",
+                "passed": "if " in response.lower(),
+            },
+            {
+                "name": "Result feedback",
+                "passed": (
+                    "print(" in response.lower()
+                    or "return " in response.lower()
+                ),
+            },
+            {
+                "name": "Python implementation",
+                "passed": (
+                    "import " in response.lower()
+                    or "input(" in response.lower()
+                ),
+            },
+        ]
+    else:
+        # Generic fallback until AI-powered evaluation is introduced.
+        criteria = [
+            {
+                "name": "Practical implementation",
+                "passed": len(response) >= 100,
+            },
+            {
+                "name": "Relevant response",
+                "passed": len(response.split()) >= 10,
+            },
+        ]
+
+    passed_criteria = [
+        criterion["name"]
+        for criterion in criteria
+        if criterion["passed"]
+    ]
+
+    failed_criteria = [
+        criterion["name"]
+        for criterion in criteria
+        if not criterion["passed"]
+    ]
+
+    total_criteria = len(criteria)
+    passed_count = len(passed_criteria)
+
+    score = round((passed_count / total_criteria) * 100)
+    passed = score >= 80
+
+    if passed:
+        feedback = (
+            "The learner demonstrated the required practical skills "
+            "for this mission."
+        )
+        next_action = "Create a targeted follow-up mission."
+    else:
+        feedback = (
+            "The learner has not yet demonstrated all required skills. "
+            "Focus the next exercise on the missing criteria."
+        )
+        next_action = (
+            "Create a targeted exercise for the identified weaknesses."
+        )
+
+    return {
+        "status": "evaluated",
+        "skill": skill,
+        "mission": mission,
+        "attempt_type": normalized_type,
+        "score": score,
+        "passed": passed,
+        "criteria": criteria,
+        "strengths": passed_criteria,
+        "weaknesses": failed_criteria,
+        "feedback": feedback,
+        "next_action": next_action,
     }
 
 
