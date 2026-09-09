@@ -282,6 +282,8 @@ def evaluate_attempt(
         "feedback": feedback,
         "next_action": next_action,
     }
+
+
 @mcp.tool()
 def identify_weaknesses(
     skill: str,
@@ -327,6 +329,8 @@ def identify_weaknesses(
         ),
         "next_action": "Generate a targeted exercise for the weaknesses.",
     }
+
+
 @mcp.tool()
 def generate_targeted_exercise(
     skill: str,
@@ -380,7 +384,71 @@ def generate_targeted_exercise(
         "status": "created",
         "skill": skill,
         "exercise": exercise,
-        "next_action": "Complete the targeted exercise and submit the attempt.",
+        "next_action": (
+            "Complete the targeted exercise and submit the attempt."
+        ),
+    }
+
+
+@mcp.tool()
+def adapt_learning_mission(
+    skill: str,
+    evaluation: dict,
+) -> dict:
+    """
+    Adapt the learner's next action based on an attempt evaluation.
+
+    Args:
+        skill: The skill being practiced.
+        evaluation: The evaluation result returned by evaluate_attempt().
+    """
+    if evaluation.get("status") != "evaluated":
+        return {
+            "status": "error",
+            "message": "A valid evaluation result is required.",
+        }
+
+    weaknesses = evaluation.get("weaknesses", [])
+    strengths = evaluation.get("strengths", [])
+    score = evaluation.get("score", 0)
+    passed = evaluation.get("passed", False)
+
+    # If the learner has mastered the current mission,
+    # recommend increasing the difficulty.
+    if not weaknesses:
+        return {
+            "status": "adapted",
+            "skill": skill,
+            "score": score,
+            "passed": passed,
+            "strengths": strengths,
+            "weaknesses": [],
+            "next_action": "Create a more advanced mission.",
+            "message": (
+                "The learner demonstrated the required skills. "
+                "Increase the difficulty of the next mission."
+            ),
+        }
+
+    # Otherwise, create a targeted exercise directly from
+    # the weaknesses identified by the evaluation.
+    targeted_exercise = generate_targeted_exercise(
+        skill=skill,
+        weaknesses=weaknesses,
+    )
+
+    return {
+        "status": "adapted",
+        "skill": skill,
+        "score": score,
+        "passed": passed,
+        "strengths": strengths,
+        "weaknesses": weaknesses,
+        "targeted_exercise": targeted_exercise,
+        "next_action": (
+            "Complete the targeted exercise, submit the attempt, "
+            "and evaluate the new attempt."
+        ),
     }
 
 

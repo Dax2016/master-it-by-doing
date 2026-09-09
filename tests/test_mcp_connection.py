@@ -155,6 +155,23 @@ async def main():
                     "weaknesses": weakness_data["weaknesses"],
                 },
             )
+            # ---------------------------------------------------------
+            # 9. ADAPT LEARNING MISSION
+            # ---------------------------------------------------------
+            adaptive_evaluation = json.loads(
+                weak_evaluation.content[0].text
+            )
+
+            adapted_mission = await session.call_tool(
+                "adapt_learning_mission",
+                {
+                    "skill": "Python",
+                    "evaluation": adaptive_evaluation,
+                },
+            )
+
+            print("\nADAPTED LEARNING MISSION:")
+            print(adapted_mission)
 
             print("\nTARGETED EXERCISE:")
             print(targeted_exercise)
