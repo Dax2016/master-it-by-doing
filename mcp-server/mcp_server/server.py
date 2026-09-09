@@ -282,6 +282,51 @@ def evaluate_attempt(
         "feedback": feedback,
         "next_action": next_action,
     }
+@mcp.tool()
+def identify_weaknesses(
+    skill: str,
+    evaluation: dict,
+) -> dict:
+    """
+    Identify the learner's skill gaps from an attempt evaluation.
+
+    Args:
+        skill: The skill being practiced.
+        evaluation: The evaluation result returned by evaluate_attempt().
+    """
+    if evaluation.get("status") != "evaluated":
+        return {
+            "status": "error",
+            "message": "A valid evaluation result is required.",
+        }
+
+    weaknesses = evaluation.get("weaknesses", [])
+    strengths = evaluation.get("strengths", [])
+
+    if not weaknesses:
+        return {
+            "status": "identified",
+            "skill": skill,
+            "weaknesses": [],
+            "strengths": strengths,
+            "message": (
+                "No significant skill gaps were identified. "
+                "The learner demonstrated the required skills."
+            ),
+            "next_action": "Create a more advanced mission.",
+        }
+
+    return {
+        "status": "identified",
+        "skill": skill,
+        "weaknesses": weaknesses,
+        "strengths": strengths,
+        "message": (
+            "The learner should focus on the identified skill gaps "
+            "before progressing to a more advanced mission."
+        ),
+        "next_action": "Generate a targeted exercise for the weaknesses.",
+    }
 
 
 if __name__ == "__main__":

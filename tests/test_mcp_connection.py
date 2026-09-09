@@ -121,6 +121,31 @@ async def main():
 
             print("\nWEAK ATTEMPT EVALUATION:")
             print(weak_evaluation)
+            # ---------------------------------------------------------
+            # 7. IDENTIFY WEAKNESSES
+            # ---------------------------------------------------------
+            weakness_analysis = await session.call_tool(
+                "identify_weaknesses",
+                {
+                    "skill": "Python",
+                    "evaluation": {
+                        "status": "evaluated",
+                        "strengths": [
+                            "Result feedback"
+                        ],
+                        "weaknesses": [
+                            "Random number generation",
+                            "Learner input",
+                            "Guess comparison",
+                            "Conditional logic",
+                            "Python implementation",
+                        ],
+                    },
+                },
+            )
+
+            print("\nWEAKNESS ANALYSIS:")
+            print(weakness_analysis)            
 
 
 if __name__ == "__main__":
