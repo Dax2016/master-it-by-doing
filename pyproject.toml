@@ -1,0 +1,9 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "master-it-by-doing"
+version = "0.1.0"
+description = "An AI-powered learning coach that turns learning goals into practical missions and adapts them based on learner performance."
+requires-python = ">=3.13,<3.14"
