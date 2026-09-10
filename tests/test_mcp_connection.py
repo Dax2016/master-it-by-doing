@@ -169,6 +169,16 @@ async def main():
                     "evaluation": adaptive_evaluation,
                 },
             )
+                        # ---------------------------------------------------------
+            # 10. GET LEARNER STATE
+            # ---------------------------------------------------------
+            learner_state = await session.call_tool(
+                "get_learner_state",
+                {},
+            )
+
+            print("\nLEARNER STATE:")
+            print(learner_state)
 
             print("\nADAPTED LEARNING MISSION:")
             print(adapted_mission)

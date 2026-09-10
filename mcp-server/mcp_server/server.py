@@ -1,7 +1,11 @@
 from mcp.server.fastmcp import FastMCP
 
+from services.learner.learner_state import LearnerState
+
 
 mcp = FastMCP("Master It By Doing")
+
+learner = LearnerState(learner_id="demo-learner")
 
 
 @mcp.tool()
@@ -10,14 +14,22 @@ def create_learning_goal(
     learner_level: str = "beginner",
 ) -> dict:
     """
-    Create a practical learning goal for the learner.
+    Create and record a practical learning goal for the learner.
 
     Args:
         skill: The skill the learner wants to learn.
         learner_level: The learner's current level.
     """
+    goal = {
+        "skill": skill,
+        "learner_level": learner_level,
+    }
+
+    learner.add_goal(goal)
+
     return {
         "status": "created",
+        "learner_id": learner.learner_id,
         "skill": skill,
         "learner_level": learner_level,
         "message": (
@@ -104,7 +116,7 @@ def submit_attempt(
     attempt_type: str = "text",
 ) -> dict:
     """
-    Submit a learner's work for evaluation.
+    Submit and record a learner's work for evaluation.
 
     Args:
         skill: The skill being practiced.
@@ -131,8 +143,18 @@ def submit_attempt(
             "message": "learner_response cannot be empty.",
         }
 
+    attempt = {
+        "skill": skill,
+        "mission": mission,
+        "attempt_type": normalized_type,
+        "learner_response": learner_response,
+    }
+
+    learner.add_attempt(attempt)
+
     return {
         "status": "submitted",
+        "learner_id": learner.learner_id,
         "skill": skill,
         "mission": mission,
         "attempt_type": normalized_type,
@@ -269,8 +291,15 @@ def evaluate_attempt(
             "Create a targeted exercise for the identified weaknesses."
         )
 
+    # Update the learner's current skill profile.
+    learner.update_skill_profile(
+        strengths=passed_criteria,
+        weaknesses=failed_criteria,
+    )
+
     return {
         "status": "evaluated",
+        "learner_id": learner.learner_id,
         "skill": skill,
         "mission": mission,
         "attempt_type": normalized_type,
@@ -413,11 +442,18 @@ def adapt_learning_mission(
     score = evaluation.get("score", 0)
     passed = evaluation.get("passed", False)
 
+    # Keep the learner profile synchronized with the evaluation.
+    learner.update_skill_profile(
+        strengths=strengths,
+        weaknesses=weaknesses,
+    )
+
     # If the learner has mastered the current mission,
     # recommend increasing the difficulty.
     if not weaknesses:
         return {
             "status": "adapted",
+            "learner_id": learner.learner_id,
             "skill": skill,
             "score": score,
             "passed": passed,
@@ -439,6 +475,7 @@ def adapt_learning_mission(
 
     return {
         "status": "adapted",
+        "learner_id": learner.learner_id,
         "skill": skill,
         "score": score,
         "passed": passed,
@@ -449,6 +486,17 @@ def adapt_learning_mission(
             "Complete the targeted exercise, submit the attempt, "
             "and evaluate the new attempt."
         ),
+    }
+
+
+@mcp.tool()
+def get_learner_state() -> dict:
+    """
+    Return the learner's current learning state.
+    """
+    return {
+        "status": "retrieved",
+        "learner": learner.to_dict(),
     }
 
 
