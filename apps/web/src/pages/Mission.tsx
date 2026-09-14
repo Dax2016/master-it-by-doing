@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 
 type Criterion = {
@@ -18,19 +18,173 @@ type Evaluation = {
   next_action: string
 }
 
-type ApiResponse = {
+type MissionDetails = {
+  title: string
+  description: string
+  skills?: string[]
+}
+
+type MissionResponse = {
+  status: string
+  skill: string
+  learner_level: string
+  mission: MissionDetails
+  next_action: string
+}
+
+type TargetedExercise = {
+  status: string
+  skill: string
+  exercise: {
+    title: string
+    objective: string
+    instructions: string[]
+    success_signal: string
+    targeted_skills: string[]
+    targeted_criteria: string[]
+  }
+  next_action: string
+}
+
+type AdaptedMission = {
+  status: string
+  learner_id: string
+  skill: string
+  score: number
+  passed: boolean
+  strengths: string[]
+  weaknesses: string[]
+  targeted_exercise?: TargetedExercise
+  next_action: string
+}
+
+type LearningState = {
+  learner_id: string
+  skill: string
+  level: string
+  goal: Record<string, unknown> | null
+  mission: MissionResponse | null
+  latest_attempt: unknown
+  attempt_text: string | null
+  attempt_type: string
+  evaluation: Evaluation | null
+  weaknesses: string[] | null
+  targeted_exercise: TargetedExercise | null
+  adapted_mission: AdaptedMission | null
+  next_action: string
+}
+
+type StartLearningResponse = {
+  status: string
+  result: LearningState
+  detail?: unknown
+}
+
+type AttemptResponse = {
   status: string
   mission_id: string
-  result: Evaluation
+  result: LearningState
+  detail?: unknown
 }
 
 export default function Mission() {
   const { missionId } = useParams()
 
+  const [learningState, setLearningState] =
+    useState<LearningState | null>(null)
+
   const [attempt, setAttempt] = useState('')
-  const [evaluation, setEvaluation] = useState<Evaluation | null>(null)
-  const [isSubmitting, setIsSubmitting] = useState(false)
+
+  const [evaluation, setEvaluation] =
+    useState<Evaluation | null>(null)
+
+  const [isLoadingMission, setIsLoadingMission] =
+    useState(true)
+
+  const [isSubmitting, setIsSubmitting] =
+    useState(false)
+
   const [error, setError] = useState('')
+
+  const missionLoadedRef = useRef(false)
+
+  useEffect(() => {
+    if (missionLoadedRef.current) {
+      return
+    }
+
+    missionLoadedRef.current = true
+
+    async function loadMission() {
+      try {
+        setIsLoadingMission(true)
+        setError('')
+
+        const response = await fetch(
+          'http://127.0.0.1:8080/api/learning/start',
+          {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              learner_id: 'demo-learner',
+              skill: 'python',
+              level: 'beginner',
+            }),
+          },
+        )
+
+        const data =
+          (await response.json()) as StartLearningResponse
+
+        if (!response.ok) {
+          const detail = data.detail
+
+          const message =
+            typeof detail === 'string'
+              ? detail
+              : typeof detail === 'object' &&
+                  detail !== null &&
+                  'message' in detail
+                ? String(
+                    (
+                      detail as {
+                        message: unknown
+                      }
+                    ).message,
+                  )
+                : 'Unable to load the learning mission.'
+
+          throw new Error(message)
+        }
+
+        if (!data.result) {
+          throw new Error(
+            'The learning service returned no mission.',
+          )
+        }
+
+        setLearningState(data.result)
+        setEvaluation(data.result.evaluation ?? null)
+      } catch (missionError) {
+        console.error(
+          'Failed to load mission:',
+          missionError,
+        )
+
+        setError(
+          missionError instanceof Error
+            ? missionError.message
+            : 'Unable to load your mission.',
+        )
+      } finally {
+        setIsLoadingMission(false)
+      }
+    }
+
+    loadMission()
+  }, [])
 
   async function handleSubmit(
     event: React.FormEvent<HTMLFormElement>,
@@ -39,7 +193,14 @@ export default function Mission() {
 
     const trimmedAttempt = attempt.trim()
 
-    if (!trimmedAttempt || isSubmitting) {
+    const currentMission =
+      learningState?.mission?.mission
+
+    if (
+      !trimmedAttempt ||
+      isSubmitting ||
+      !currentMission
+    ) {
       return
     }
 
@@ -49,7 +210,9 @@ export default function Mission() {
 
     try {
       const response = await fetch(
-        `http://localhost:8080/api/missions/${missionId ?? '1'}/attempt`,
+        `http://127.0.0.1:8080/api/missions/${
+          missionId ?? '1'
+        }/attempt`,
         {
           method: 'POST',
           headers: {
@@ -57,31 +220,53 @@ export default function Mission() {
           },
           body: JSON.stringify({
             learner_id: 'demo-learner',
-            skill: 'python',
-            level: 'beginner',
-            mission: 'Build an authenticated API',
+            skill: learningState.skill,
+            level: learningState.level,
+            mission: currentMission.title,
             attempt: trimmedAttempt,
             attempt_type: 'text',
           }),
         },
       )
 
-      const data = await response.json()
+      const data =
+        (await response.json()) as AttemptResponse
 
       if (!response.ok) {
+        const detail = data.detail
+
         const message =
-          typeof data.detail === 'string'
-            ? data.detail
-            : data.detail?.message ||
-              'The learning evaluation failed.'
+          typeof detail === 'string'
+            ? detail
+            : typeof detail === 'object' &&
+                detail !== null &&
+                'message' in detail
+              ? String(
+                  (
+                    detail as {
+                      message: unknown
+                    }
+                  ).message,
+                )
+              : 'The learning evaluation failed.'
 
         throw new Error(message)
       }
 
-      const result = data as ApiResponse
+      if (!data.result) {
+        throw new Error(
+          'The learning service returned no evaluation result.',
+        )
+      }
 
-      setEvaluation(result.result)
+      setLearningState(data.result)
+      setEvaluation(data.result.evaluation ?? null)
     } catch (submissionError) {
+      console.error(
+        'Submission failed:',
+        submissionError,
+      )
+
       setError(
         submissionError instanceof Error
           ? submissionError.message
@@ -92,224 +277,436 @@ export default function Mission() {
     }
   }
 
+  const mission =
+    learningState?.mission?.mission ?? null
+
+  const missionSkills =
+    mission?.skills ?? []
+
+  const evaluationCriteria =
+    evaluation?.criteria ?? []
+
+  const evaluationStrengths =
+    evaluation?.strengths ?? []
+
+  const evaluationWeaknesses =
+    evaluation?.weaknesses ?? []
+
+  const learnerWeaknesses =
+    learningState?.weaknesses ?? []
+
+  const adaptedMission =
+    learningState?.adapted_mission ?? null
+
+  const adaptedExercise =
+    adaptedMission?.targeted_exercise?.exercise ?? null
+
   return (
     <main className="mission-page">
       <nav className="mission-nav">
-        <Link to="/dashboard">← Back to dashboard</Link>
+        <Link to="/dashboard">
+          ← Back to dashboard
+        </Link>
 
-        <span>Mission {missionId}</span>
+        <span>
+          Mission {missionId ?? '1'}
+        </span>
       </nav>
 
-      <section className="mission-header">
-        <span className="eyebrow">PRACTICAL MISSION</span>
+      {isLoadingMission && (
+        <section className="mission-header">
+          <span className="eyebrow">
+            PRACTICAL MISSION
+          </span>
 
-        <h1>Build an authenticated API</h1>
-
-        <p>
-          Complete this practical challenge to continue your mastery journey.
-          Your work will become the basis for the next evaluation and challenge.
-        </p>
-      </section>
-
-      <section className="mission-content">
-        <article className="mission-card">
-          <div className="card-header">
-            <div>
-              <span className="eyebrow">YOUR CHALLENGE</span>
-
-              <h2>Build a protected REST API</h2>
-            </div>
-
-            <span className="status">ACTIVE</span>
-          </div>
+          <h1>
+            Loading your mission...
+          </h1>
 
           <p>
-            Build a REST API with Python that allows authenticated users to
-            create, read, update, and delete learning resources.
+            Preparing your next hands-on challenge.
           </p>
+        </section>
+      )}
 
-          <h3>Requirements</h3>
+      {error && !mission && (
+        <section className="mission-header">
+          <span className="eyebrow">
+            MISSION UNAVAILABLE
+          </span>
 
-          <ul>
-            <li>Create a REST API using Python.</li>
-            <li>Implement authentication for protected endpoints.</li>
-            <li>
-              Allow authenticated users to manage learning resources.
-            </li>
-            <li>Return appropriate HTTP status codes.</li>
-            <li>
-              Document how another developer can run and test your API.
-            </li>
-          </ul>
+          <h1>
+            We couldn't load your mission.
+          </h1>
 
-          <h3>What you need to prove</h3>
+          <p>{error}</p>
 
           <p>
-            Don't just explain how you would build it. Show what you actually
-            built and how it works.
+            Make sure the MCP server and learning API
+            are running.
           </p>
-        </article>
+        </section>
+      )}
 
-        <form
-          className="submission-card"
-          onSubmit={handleSubmit}
-        >
-          <div>
-            <span className="eyebrow">YOUR ATTEMPT</span>
+      {!isLoadingMission && mission && (
+        <>
+          <section className="mission-header">
+            <span className="eyebrow">
+              PRACTICAL MISSION
+            </span>
 
-            <h2>Show what you built</h2>
+            <h1>{mission.title}</h1>
 
             <p>
-              Describe your implementation, provide the relevant repository
-              or API details, and explain how authentication works.
+              Complete this practical challenge to
+              continue your mastery journey. Your work
+              will become the basis for the next
+              evaluation and challenge.
             </p>
-          </div>
+          </section>
 
-          <label htmlFor="attempt">
-            Your submission
-          </label>
-
-          <textarea
-            id="attempt"
-            name="attempt"
-            value={attempt}
-            onChange={(event) => {
-              setAttempt(event.target.value)
-              setEvaluation(null)
-              setError('')
-            }}
-            placeholder="Describe what you built, how you implemented authentication, and how someone can test your API..."
-            rows={12}
-            required
-          />
-
-          <div className="submission-footer">
-            <span>{attempt.length} characters</span>
-
-            <button
-              type="submit"
-              disabled={!attempt.trim() || isSubmitting}
-            >
-              {isSubmitting
-                ? 'Evaluating...'
-                : 'Submit attempt →'}
-            </button>
-          </div>
-
-          {error && (
-            <div
-              className="submission-error"
-              role="alert"
-            >
-              <strong>Evaluation failed</strong>
-
-              <p>{error}</p>
-            </div>
-          )}
-
-          {evaluation && (
-            <section
-              className="evaluation-result"
-              aria-live="polite"
-            >
-              <div className="evaluation-header">
+          <section className="mission-content">
+            <article className="mission-card">
+              <div className="card-header">
                 <div>
                   <span className="eyebrow">
-                    EVALUATION COMPLETE
+                    YOUR CHALLENGE
                   </span>
 
-                  <h2>
-                    {evaluation.passed
-                      ? 'Mission passed'
-                      : 'Keep building'}
-                  </h2>
+                  <h2>{mission.title}</h2>
                 </div>
 
-                <div className="evaluation-score">
-                  <strong>{evaluation.score}</strong>
-
-                  <span>/100</span>
-                </div>
+                <span className="status">
+                  ACTIVE
+                </span>
               </div>
 
-              <div className="criteria-list">
-                <h3>What you proved</h3>
+              <p>
+                {mission.description}
+              </p>
 
-                {evaluation.criteria.map((criterion) => (
-                  <article
-                    className="criterion"
-                    key={criterion.id}
-                  >
-                    <div className="criterion-header">
-                      <strong>{criterion.name}</strong>
-
-                      <span
-                        className={
-                          criterion.passed
-                            ? 'criterion-passed'
-                            : 'criterion-failed'
-                        }
-                      >
-                        {criterion.passed
-                          ? 'PASSED'
-                          : 'NOT PROVEN'}
-                      </span>
-                    </div>
-
-                    <p>{criterion.evidence}</p>
-                  </article>
-                ))}
-              </div>
-
-              {evaluation.strengths.length > 0 && (
-                <div className="evaluation-section">
-                  <h3>Strengths</h3>
+              {missionSkills.length > 0 && (
+                <>
+                  <h3>
+                    Skills to practice
+                  </h3>
 
                   <ul>
-                    {evaluation.strengths.map(
-                      (strength, index) => (
-                        <li key={index}>
-                          {strength}
+                    {missionSkills.map(
+                      (skill) => (
+                        <li key={skill}>
+                          {skill}
                         </li>
                       ),
                     )}
                   </ul>
-                </div>
+                </>
               )}
 
-              {evaluation.weaknesses.length > 0 && (
-                <div className="evaluation-section">
-                  <h3>Areas to improve</h3>
+              <h3>
+                What you need to prove
+              </h3>
 
-                  <ul>
-                    {evaluation.weaknesses.map(
-                      (weakness, index) => (
-                        <li key={index}>
-                          {weakness}
-                        </li>
-                      ),
-                    )}
-                  </ul>
-                </div>
-              )}
+              <p>
+                Don't just explain what you would
+                build. Show what you actually built
+                and provide enough evidence for the
+                evaluator to assess your work.
+              </p>
+            </article>
 
-              <div className="evaluation-section">
-                <h3>Feedback</h3>
-
-                <p>{evaluation.feedback}</p>
-              </div>
-
-              <div className="next-action">
+            <form
+              className="submission-card"
+              onSubmit={handleSubmit}
+            >
+              <div>
                 <span className="eyebrow">
-                  NEXT ACTION
+                  YOUR ATTEMPT
                 </span>
 
-                <h3>{evaluation.next_action}</h3>
+                <h2>
+                  Show what you built
+                </h2>
+
+                <p>
+                  Submit your implementation,
+                  relevant evidence, and explain
+                  how your solution demonstrates
+                  the required skills.
+                </p>
               </div>
-            </section>
-          )}
-        </form>
-      </section>
+
+              <label htmlFor="attempt">
+                Your submission
+              </label>
+
+              <textarea
+                id="attempt"
+                name="attempt"
+                value={attempt}
+                onChange={(event) => {
+                  setAttempt(event.target.value)
+                  setEvaluation(null)
+                  setError('')
+                }}
+                placeholder="Describe what you built and provide evidence of your implementation..."
+                rows={12}
+                required
+              />
+
+              <div className="submission-footer">
+                <span>
+                  {attempt.length} characters
+                </span>
+
+                <button
+                  type="submit"
+                  disabled={
+                    !attempt.trim() ||
+                    isSubmitting
+                  }
+                >
+                  {isSubmitting
+                    ? 'Evaluating...'
+                    : 'Submit attempt →'}
+                </button>
+              </div>
+
+              {error && (
+                <div
+                  className="submission-error"
+                  role="alert"
+                >
+                  <strong>
+                    Evaluation failed
+                  </strong>
+
+                  <p>{error}</p>
+                </div>
+              )}
+
+              {evaluation && (
+                <section
+                  className="evaluation-result"
+                  aria-live="polite"
+                >
+                  <div className="evaluation-header">
+                    <div>
+                      <span className="eyebrow">
+                        EVALUATION COMPLETE
+                      </span>
+
+                      <h2>
+                        {evaluation.passed
+                          ? 'Mission passed'
+                          : 'Keep building'}
+                      </h2>
+                    </div>
+
+                    <div className="evaluation-score">
+                      <strong>
+                        {evaluation.score}
+                      </strong>
+
+                      <span>/100</span>
+                    </div>
+                  </div>
+
+                  {evaluationCriteria.length >
+                    0 && (
+                    <div className="criteria-list">
+                      <h3>
+                        What you proved
+                      </h3>
+
+                      {evaluationCriteria.map(
+                        (criterion) => (
+                          <article
+                            className="criterion"
+                            key={criterion.id}
+                          >
+                            <div className="criterion-header">
+                              <strong>
+                                {criterion.name}
+                              </strong>
+
+                              <span
+                                className={
+                                  criterion.passed
+                                    ? 'criterion-passed'
+                                    : 'criterion-failed'
+                                }
+                              >
+                                {criterion.passed
+                                  ? 'PASSED'
+                                  : 'NOT PROVEN'}
+                              </span>
+                            </div>
+
+                            <p>
+                              {criterion.evidence}
+                            </p>
+                          </article>
+                        ),
+                      )}
+                    </div>
+                  )}
+
+                  {evaluationStrengths.length >
+                    0 && (
+                    <div className="evaluation-section">
+                      <h3>
+                        Strengths
+                      </h3>
+
+                      <ul>
+                        {evaluationStrengths.map(
+                          (
+                            strength,
+                            index,
+                          ) => (
+                            <li key={index}>
+                              {strength}
+                            </li>
+                          ),
+                        )}
+                      </ul>
+                    </div>
+                  )}
+
+                  {evaluationWeaknesses.length >
+                    0 && (
+                    <div className="evaluation-section">
+                      <h3>
+                        Areas to improve
+                      </h3>
+
+                      <ul>
+                        {evaluationWeaknesses.map(
+                          (
+                            weakness,
+                            index,
+                          ) => (
+                            <li key={index}>
+                              {weakness}
+                            </li>
+                          ),
+                        )}
+                      </ul>
+                    </div>
+                  )}
+
+                  <div className="evaluation-section">
+                    <h3>
+                      Feedback
+                    </h3>
+
+                    <p>
+                      {evaluation.feedback}
+                    </p>
+                  </div>
+
+                  <div className="next-action">
+                    <span className="eyebrow">
+                      NEXT ACTION
+                    </span>
+
+                    <h3>
+                      {evaluation.next_action}
+                    </h3>
+                  </div>
+
+                  {learnerWeaknesses.length >
+                    0 && (
+                    <div className="evaluation-section">
+                      <h3>
+                        Targeted practice
+                      </h3>
+
+                      <p>
+                        Your next challenge has
+                        been adapted to focus on
+                        the areas you need to
+                        strengthen.
+                      </p>
+                    </div>
+                  )}
+
+                  {adaptedExercise && (
+                    <section className="adapted-mission">
+                      <div className="adapted-mission-header">
+                        <div>
+                          <span className="eyebrow">
+                            ADAPTED NEXT CHALLENGE
+                          </span>
+
+                          <h2>
+                            {adaptedExercise.title}
+                          </h2>
+                        </div>
+
+                        <span className="status">
+                          READY
+                        </span>
+                      </div>
+
+                      <h3>
+                        Objective
+                      </h3>
+
+                      <p>
+                        {adaptedExercise.objective}
+                      </p>
+
+                      {adaptedExercise.instructions
+                        ?.length > 0 && (
+                        <>
+                          <h3>
+                            What to do
+                          </h3>
+
+                          <ol>
+                            {adaptedExercise.instructions.map(
+                              (
+                                instruction,
+                                index,
+                              ) => (
+                                <li key={index}>
+                                  {instruction}
+                                </li>
+                              ),
+                            )}
+                          </ol>
+                        </>
+                      )}
+
+                      <h3>
+                        Success signal
+                      </h3>
+
+                      <p>
+                        {adaptedExercise.success_signal}
+                      </p>
+
+                      <div className="next-action">
+                        <span className="eyebrow">
+                          LEARNING LOOP
+                        </span>
+
+                        <h3>
+                          Complete this challenge,
+                          submit your attempt, and
+                          evaluate the new attempt.
+                        </h3>
+                      </div>
+                    </section>
+                  )}
+                </section>
+              )}
+            </form>
+          </section>
+        </>
+      )}
     </main>
   )
 }

@@ -7,6 +7,7 @@ and the existing learning orchestrator.
 """
 
 from typing import Literal
+import traceback
 
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
@@ -39,6 +40,31 @@ app.add_middleware(
 # ---------------------------------------------------------------------------
 # REQUEST MODELS
 # ---------------------------------------------------------------------------
+
+class StartLearningRequest(BaseModel):
+    """
+    Request body for starting a learner's journey.
+
+    The learner provides the skill and current level.
+    The learning orchestrator then creates the goal and
+    practical mission through the MCP learning engine.
+    """
+
+    learner_id: str = Field(
+        default="demo-learner",
+        min_length=1,
+    )
+
+    skill: str = Field(
+        default="python",
+        min_length=1,
+    )
+
+    level: str = Field(
+        default="beginner",
+        min_length=1,
+    )
+
 
 class AttemptRequest(BaseModel):
     """
@@ -92,6 +118,88 @@ async def health() -> dict:
     return {
         "status": "ok",
         "service": "master-it-by-doing-api",
+    }
+
+
+# ---------------------------------------------------------------------------
+# START LEARNING JOURNEY
+# ---------------------------------------------------------------------------
+
+@app.post("/api/learning/start")
+async def start_learning(
+    request: StartLearningRequest,
+) -> dict:
+    """
+    Start a learner's practical learning journey.
+
+    Workflow:
+
+        React
+          ↓
+        FastAPI
+          ↓
+        LearningOrchestrator
+          ↓
+        MCP
+          ↓
+        create_learning_goal
+          ↓
+        create_mission
+          ↓
+        GOAL → MISSION
+    """
+
+    # -----------------------------------------------------------------------
+    # Create orchestrator
+    # -----------------------------------------------------------------------
+
+    orchestrator = LearningOrchestrator(
+        learner_id=request.learner_id,
+        skill=request.skill,
+        level=request.level,
+    )
+
+    # -----------------------------------------------------------------------
+    # Execute GOAL → MISSION
+    # -----------------------------------------------------------------------
+
+    try:
+        result = await orchestrator.run_learning_cycle()
+
+    except ValueError as exc:
+        raise HTTPException(
+            status_code=400,
+            detail={
+                "message": str(exc),
+                "error_type": type(exc).__name__,
+            },
+        ) from exc
+
+    except Exception as exc:
+        # Temporary diagnostic output.
+        # This will help us identify the real exception behind
+        # the ExceptionGroup returned by the MCP client.
+        traceback.print_exc()
+
+        raise HTTPException(
+            status_code=500,
+            detail={
+                "message": (
+                    "Learning journey could not be started."
+                ),
+                "error_type": type(exc).__name__,
+                "error": str(exc),
+                "traceback": traceback.format_exc(),
+            },
+        ) from exc
+
+    # -----------------------------------------------------------------------
+    # Return real learning state
+    # -----------------------------------------------------------------------
+
+    return {
+        "status": "started",
+        "result": result,
     }
 
 
