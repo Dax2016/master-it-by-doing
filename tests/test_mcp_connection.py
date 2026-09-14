@@ -89,6 +89,15 @@ async def main():
             print("\nGOOD ATTEMPT EVALUATION:")
             print(evaluation)
 
+            evaluation_data = json.loads(
+                evaluation.content[0].text
+            )
+            assert evaluation_data["status"] == "evaluated"
+            assert evaluation_data["score"] == 75
+            assert evaluation_data["passed_criteria"] == 3
+            assert evaluation_data["total_criteria"] == 4
+            assert evaluation_data["mastery_status"] == "needs_practice"
+
             # ---------------------------------------------------------
             # 5. SUBMIT WEAK ATTEMPT
             # ---------------------------------------------------------
@@ -123,13 +132,17 @@ async def main():
             print("\nWEAK ATTEMPT EVALUATION:")
             print(weak_evaluation)
 
-            # ---------------------------------------------------------
-            # 7. IDENTIFY WEAKNESSES
-            # ---------------------------------------------------------
             weak_evaluation_data = json.loads(
                 weak_evaluation.content[0].text
             )
+            assert weak_evaluation_data["status"] == "evaluated"
+            assert weak_evaluation_data["score"] == 0
+            assert weak_evaluation_data["passed_criteria"] == 0
+            assert weak_evaluation_data["total_criteria"] == 4
 
+            # ---------------------------------------------------------
+            # 7. IDENTIFY WEAKNESSES
+            # ---------------------------------------------------------
             weakness_analysis = await session.call_tool(
                 "identify_weaknesses",
                 {
@@ -149,26 +162,39 @@ async def main():
             )
 
             targeted_exercise = await session.call_tool(
-                "generate_targeted_exercise",
-                {
-                    "skill": "Python",
-                    "weaknesses": weakness_data["weaknesses"],
-                },
+            "generate_targeted_exercise",
+            {
+                "skill": "Python",
+                "failed_criteria": [
+            criterion
+            for criterion in evaluation_data["criteria"]
+            if not criterion["passed"]
+               ],
+               },
             )
             # ---------------------------------------------------------
             # 9. ADAPT LEARNING MISSION
             # ---------------------------------------------------------
-            adaptive_evaluation = json.loads(
-                weak_evaluation.content[0].text
-            )
-
             adapted_mission = await session.call_tool(
                 "adapt_learning_mission",
                 {
                     "skill": "Python",
-                    "evaluation": adaptive_evaluation,
+                    "evaluation": evaluation_data,
                 },
             )
+            adapted_mission_data = json.loads(
+                adapted_mission.content[0].text
+            )
+            targeted_exercise_data = adapted_mission_data[
+                "targeted_exercise"
+            ]["exercise"]
+            assert (
+                targeted_exercise_data["title"]
+                == "Guessing Game Boss Fight: The Loop"
+            )
+            assert targeted_exercise_data["targeted_criteria"] == [
+                "multiple_attempts"
+            ]
                         # ---------------------------------------------------------
             # 10. GET LEARNER STATE
             # ---------------------------------------------------------
