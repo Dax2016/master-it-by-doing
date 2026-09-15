@@ -234,11 +234,24 @@ class LearningOrchestrator:
                 "identifying weaknesses."
             )
 
+        weaknesses = self._weakness_list()
+
+        if not weaknesses:
+            self.session.targeted_exercise = None
+
+            return {
+                "status": "skipped",
+                "message": (
+                    "No weaknesses were identified. "
+                    "Targeted exercise generation skipped."
+                ),
+            }
+
         result = await self.mcp.call_tool(
             "generate_targeted_exercise",
             {
                 "skill": self.session.skill,
-                "weaknesses": self._weakness_list(),
+                "weaknesses": weaknesses,
                 "failed_criteria": self._failed_criteria(),
             },
         )
@@ -303,7 +316,7 @@ class LearningOrchestrator:
               ↓
             IDENTIFY WEAKNESSES
               ↓
-            TARGETED EXERCISE
+            TARGETED EXERCISE (only if weaknesses exist)
               ↓
             ADAPT
         """
@@ -343,7 +356,14 @@ class LearningOrchestrator:
         if self.session.attempt_text is not None:
             await self.evaluate_attempt()
             await self.identify_weaknesses()
-            await self.generate_targeted_exercise()
+
+            # Targeted practice is only meaningful when
+            # actual weaknesses have been identified.
+            if self._weakness_list():
+                await self.generate_targeted_exercise()
+            else:
+                self.session.targeted_exercise = None
+
             await self.adapt_learning_mission()
 
         return self.get_state()
@@ -448,8 +468,11 @@ class LearningOrchestrator:
         if self.session.weaknesses is None:
             return "identify_weaknesses"
 
-        if self.session.targeted_exercise is None:
-            return "generate_targeted_exercise"
+        # A targeted exercise is only part of the workflow
+        # when actual weaknesses exist.
+        if self._weakness_list():
+            if self.session.targeted_exercise is None:
+                return "generate_targeted_exercise"
 
         if self.session.adapted_mission is None:
             return "adapt_learning_mission"
@@ -837,4 +860,3 @@ class LearningOrchestrator:
             return value
 
         return str(value)
-

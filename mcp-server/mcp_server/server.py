@@ -23,56 +23,68 @@ def resolve_mission(
     """
     Resolve a learner-facing mission string into the canonical
     mission definition used by the assessment and Ground Truth layers.
-
-    The learner/orchestrator may provide either:
-
-        "Build a Number Guessing Game"
-
-    or:
-
-        "Build a Number Guessing Game: Create a Python program..."
-
-    Ground Truth must receive the canonical mission definition,
-    including its authoritative skills.
     """
 
     missions = {
-        "python": {
-            "title": "Build a Number Guessing Game",
-            "description": (
-                "Create a Python program that generates a random number "
-                "and lets the learner guess it."
-            ),
-            "skills": [
-                "Variables",
-                "Input and output",
-                "Conditionals",
-                "Loops",
-                "Functions",
-            ],
-        },
-        "javascript": {
-            "title": "Build a Console To-Do List",
-            "description": (
-                "Create a JavaScript program that allows a user to add, "
-                "view, and remove tasks."
-            ),
-            "skills": [
-                "Variables",
-                "Arrays",
-                "Functions",
-                "Conditionals",
-                "Loops",
-            ],
-        },
+        "python": [
+            {
+                "title": "Build a Number Guessing Game",
+                "description": (
+                    "Create a Python program that generates a random number "
+                    "and lets the learner guess it."
+                ),
+                "skills": [
+                    "Variables",
+                    "Input and output",
+                    "Conditionals",
+                    "Loops",
+                    "Functions",
+                ],
+            },
+            {
+                "title": "Build a Command-Line Quiz",
+                "description": (
+                    "Create a Python quiz program that asks multiple questions, "
+                    "checks the learner's answers, tracks the score, and "
+                    "displays the final result."
+                ),
+                "skills": [
+                    "Variables",
+                    "Input and output",
+                    "Conditionals",
+                    "Loops",
+                    "Functions",
+                    "Lists",
+                ],
+            },
+        ],
+        "javascript": [
+            {
+                "title": "Build a Console To-Do List",
+                "description": (
+                    "Create a JavaScript program that allows a user to add, "
+                    "view, and remove tasks."
+                ),
+                "skills": [
+                    "Variables",
+                    "Arrays",
+                    "Functions",
+                    "Conditionals",
+                    "Loops",
+                ],
+            },
+        ],
     }
 
     normalized_skill = skill.strip().lower()
     normalized_mission = mission.strip().lower()
 
-    canonical = missions.get(normalized_skill)
+    canonical_missions = missions.get(
+        normalized_skill,
+        [],
+    )
 
-    if canonical:
+    for canonical in canonical_missions:
         canonical_title = canonical["title"].strip().lower()
 
         if (
@@ -93,8 +105,7 @@ def resolve_mission(
     # Fallback for unknown missions.
     #
     # We intentionally preserve the supplied mission rather than
-    # inventing requirements. Ground Truth will therefore only use
-    # requirements explicitly available for that mission.
+    # inventing requirements.
     return {
         "skill": skill,
         "title": mission,
@@ -114,10 +125,6 @@ def create_learning_goal(
 ) -> dict:
     """
     Create and record a practical learning goal for the learner.
-
-    Args:
-        skill: The skill the learner wants to learn.
-        learner_level: The learner's current level.
     """
 
     goal = {
@@ -151,10 +158,6 @@ def create_mission(
 ) -> dict:
     """
     Create a practical hands-on learning mission.
-
-    Args:
-        skill: The skill the learner wants to practice.
-        learner_level: The learner's current level.
     """
 
     missions = {
@@ -228,12 +231,6 @@ def submit_attempt(
 ) -> dict:
     """
     Submit and record a learner's work for evaluation.
-
-    Args:
-        skill: The skill being practiced.
-        mission: The mission the learner was assigned.
-        learner_response: The learner's actual work or answer.
-        attempt_type: The type of submission: code, text, or answer.
     """
 
     valid_attempt_types = {
@@ -301,6 +298,11 @@ def evaluate_attempt(
 
     Bedrock provides evidence and analysis.
     Ground Truth determines the authoritative score and pass/fail state.
+
+    IMPORTANT:
+        Learning progression decisions are NOT taken from the AI-generated
+        next_action. They are handled deterministically by
+        adapt_learning_mission().
     """
 
     valid_attempt_types = {
@@ -330,17 +332,6 @@ def evaluate_attempt(
 
     # -----------------------------------------------------------------------
     # Resolve the learner-facing mission into the canonical mission.
-    #
-    # This is critical because the orchestrator may pass:
-    #
-    #   Build a Number Guessing Game:
-    #   Create a Python program...
-    #
-    # while Ground Truth requires:
-    #
-    #   Build a Number Guessing Game
-    #
-    # The canonical mission also supplies the authoritative skills.
     # -----------------------------------------------------------------------
 
     mission_data = resolve_mission(
@@ -418,6 +409,12 @@ def evaluate_attempt(
 
     # -----------------------------------------------------------------------
     # Return authoritative evaluation.
+    #
+    # IMPORTANT:
+    # Do NOT return final_evaluation["next_action"] here.
+    #
+    # next_action is a progression decision and is owned by
+    # adapt_learning_mission().
     # -----------------------------------------------------------------------
 
     return {
@@ -447,7 +444,6 @@ def evaluate_attempt(
         "strengths": final_evaluation["strengths"],
         "weaknesses": final_evaluation["weaknesses"],
         "feedback": final_evaluation["feedback"],
-        "next_action": final_evaluation["next_action"],
     }
 
 
@@ -462,10 +458,6 @@ def identify_weaknesses(
 ) -> dict:
     """
     Identify the learner's skill gaps from an attempt evaluation.
-
-    Args:
-        skill: The skill being practiced.
-        evaluation: The evaluation result returned by evaluate_attempt().
     """
 
     if evaluation.get("status") != "evaluated":
@@ -528,11 +520,6 @@ def generate_targeted_exercise(
 ) -> dict:
     """
     Generate a practical exercise targeting the learner's weaknesses.
-
-    Args:
-        skill: The skill being practiced.
-        weaknesses: The learner's identified skill gaps.
-        failed_criteria: Authoritative criteria that the learner failed.
     """
 
     if not weaknesses:
@@ -655,6 +642,112 @@ def generate_targeted_exercise(
 
 
 # ---------------------------------------------------------------------------
+# MISSION PROGRESSION
+# ---------------------------------------------------------------------------
+
+def get_next_mission(
+    skill: str,
+    current_mission: str,
+) -> dict | None:
+    """
+    Return the next mission in the learner's progression path.
+
+    Current progression:
+
+        Python Mission 1
+            ↓
+        Python Mission 2
+            ↓
+        Learning path complete
+
+    The function is deterministic so the learner cannot
+    accidentally skip or receive an invented mission.
+    """
+
+    progression = {
+        "python": [
+            {
+                "title": "Build a Number Guessing Game",
+                "description": (
+                    "Create a Python program that generates a random number "
+                    "and lets the learner guess it."
+                ),
+                "skills": [
+                    "Variables",
+                    "Input and output",
+                    "Conditionals",
+                    "Loops",
+                    "Functions",
+                ],
+            },
+            {
+                "title": "Build a Command-Line Quiz",
+                "description": (
+                    "Create a Python quiz program that asks multiple questions, "
+                    "checks the learner's answers, tracks the score, and "
+                    "displays the final result."
+                ),
+                "skills": [
+                    "Variables",
+                    "Input and output",
+                    "Conditionals",
+                    "Loops",
+                    "Functions",
+                    "Lists",
+                ],
+            },
+        ],
+        "javascript": [
+            {
+                "title": "Build a Console To-Do List",
+                "description": (
+                    "Create a JavaScript program that allows a user to add, "
+                    "view, and remove tasks."
+                ),
+                "skills": [
+                    "Variables",
+                    "Arrays",
+                    "Functions",
+                    "Conditionals",
+                    "Loops",
+                ],
+            },
+        ],
+    }
+
+    normalized_skill = skill.strip().lower()
+    normalized_mission = current_mission.strip().lower()
+
+    missions = progression.get(
+        normalized_skill,
+        [],
+    )
+
+    for index, mission in enumerate(missions):
+        mission_title = mission["title"].strip().lower()
+
+        if (
+            mission_title == normalized_mission
+            or normalized_mission.startswith(mission_title)
+        ):
+            next_index = index + 1
+
+            if next_index < len(missions):
+                next_mission = missions[next_index]
+
+                return {
+                    "skill": skill,
+                    "title": next_mission["title"],
+                    "description": next_mission["description"],
+                    "skills": next_mission["skills"],
+                }
+
+            return None
+
+    return None
+
+
+# ---------------------------------------------------------------------------
 # ADAPTIVE LEARNING
 # ---------------------------------------------------------------------------
 
@@ -666,9 +759,8 @@ def adapt_learning_mission(
     """
     Adapt the learner's next action based on an attempt evaluation.
 
-    Args:
-        skill: The skill being practiced.
-        evaluation: The evaluation result returned by evaluate_attempt().
+    Progression decisions are deterministic and do not depend
+    on Bedrock's generated next_action.
     """
 
     if evaluation.get("status") != "evaluated":
@@ -722,6 +814,44 @@ def adapt_learning_mission(
     # -----------------------------------------------------------------------
 
     if not weaknesses:
+        current_mission = ""
+
+        if learner.attempts:
+            current_mission = learner.attempts[-1].get(
+                "mission",
+                "",
+            )
+
+        next_mission = get_next_mission(
+            skill=skill,
+            current_mission=current_mission,
+        )
+
+        # ---------------------------------------------------------------
+        # Learning path complete.
+        # ---------------------------------------------------------------
+
+        if next_mission is None:
+            return {
+                "status": "adapted",
+                "learner_id": learner.learner_id,
+                "skill": skill,
+                "score": score,
+                "passed": passed,
+                "strengths": strengths,
+                "weaknesses": [],
+                "next_action": "learning_path_complete",
+                "next_mission": None,
+                "message": (
+                    "The learner has mastered the available missions "
+                    "for this learning path."
+                ),
+            }
+
+        # ---------------------------------------------------------------
+        # Advance to the next mission.
+        # ---------------------------------------------------------------
+
         return {
             "status": "adapted",
             "learner_id": learner.learner_id,
@@ -730,12 +860,11 @@ def adapt_learning_mission(
             "passed": passed,
             "strengths": strengths,
             "weaknesses": [],
-            "next_action": (
-                "Create a more advanced mission."
-            ),
+            "next_action": "create_advanced_mission",
+            "next_mission": next_mission,
             "message": (
-                "The learner demonstrated the required skills. "
-                "Increase the difficulty of the next mission."
+                "The learner demonstrated mastery. "
+                "The next mission increases the difficulty."
             ),
         }
 
