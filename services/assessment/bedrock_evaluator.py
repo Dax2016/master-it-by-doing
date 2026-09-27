@@ -68,7 +68,6 @@ class BedrockEvaluator:
         evaluation = self._parse_evaluation(raw_text)
 
         return self._validate_evaluation(evaluation)
-
     def _build_prompt(
         self,
         mission: dict[str, Any],
@@ -104,6 +103,38 @@ Do not invent requirements that are not present in the mission.
 
 Evaluate only the evidence contained in the learner attempt.
 
+IMPORTANT VALIDATION RULE:
+
+The learner attempt may contain deterministic validation evidence under:
+
+attempt.validation
+
+This validation evidence is authoritative.
+
+For Python submissions, attempt.validation.python_syntax is produced
+by a deterministic Python AST parser, not by the language model.
+
+If python_syntax.syntax_valid is true:
+- The Python source is syntactically valid.
+- You MUST NOT claim that the learner's Python code contains syntax errors.
+- You MUST NOT invent syntax errors.
+- You MUST NOT claim that dictionary access, quotes, colons, f-strings,
+  indentation, brackets, or similar Python syntax are invalid unless
+  the deterministic validation explicitly reports a syntax error.
+- Evaluate the learner's implementation based on its actual source and
+  the mission requirements.
+
+If python_syntax.syntax_valid is false:
+- You may report the deterministic syntax error contained in
+  python_syntax.error.
+- Do not replace or contradict the deterministic error with an invented
+  syntax diagnosis.
+
+Syntax validity and semantic correctness are separate concerns.
+A syntactically valid program may still fail a mission criterion.
+A syntactically invalid program may still contain recognizable evidence
+of intended implementation.
+
 MISSION:
 {mission_json}
 
@@ -118,12 +149,12 @@ The JSON must have exactly this structure:
   "score": 0,
   "passed": false,
   "criteria": [
-        {{
+    {{
       "id": "criterion_id",
       "name": "criterion name",
       "passed": false,
       "evidence": "brief evidence from the attempt"
-        }}
+    }}
   ],
   "strengths": [],
   "weaknesses": [],
@@ -146,6 +177,12 @@ Rules:
 10. Do not expose internal reasoning.
 11. Do not include markdown.
 12. Return JSON only.
+13. Never claim a Python syntax error when deterministic Python validation
+    says syntax_valid is true.
+14. Do not treat Python syntax validity as proof that a mission criterion
+    is satisfied. Evaluate each criterion separately.
+15. Do not downgrade demonstrated semantic evidence merely because the
+    learner's code is not executed in a runtime environment.
 """.strip()
 
     @staticmethod

@@ -90,9 +90,8 @@ class AttemptRequest(BaseModel):
     )
 
     mission: str = Field(
-        default="Build an authenticated API",
-        min_length=1,
-    )
+    min_length=1,
+)
 
     attempt: str = Field(
         min_length=1,

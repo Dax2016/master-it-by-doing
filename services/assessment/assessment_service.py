@@ -2,6 +2,7 @@ from typing import Any
 
 from services.assessment.bedrock_evaluator import BedrockEvaluator
 from services.assessment.ground_truth import GroundTruthEvaluator
+from services.assessment.python_code_validator import PythonCodeValidator
 
 
 class AssessmentService:
@@ -35,53 +36,60 @@ class AssessmentService:
             ),
         }
 
-        # ---------------------------------------------------------------
-        # AI evidence collection.
-        # ---------------------------------------------------------------
+        attempt_for_evaluation = dict(attempt)
+        syntax_result = None
+
+        if (
+            str(attempt.get("attempt_type", "")).strip().lower()
+            == "code"
+            and str(attempt.get("skill", "")).strip().lower()
+            == "python"
+        ):
+            syntax_result = PythonCodeValidator.validate(
+                str(attempt.get("learner_response", "")),
+                mission=(
+                    mission.get("mission")
+                    or mission.get("title")
+                    or ""
+                ),
+            )
+
+            attempt_for_evaluation["validation"] = {
+                "python_syntax": syntax_result,
+            }
 
         bedrock_evaluation = self.bedrock_evaluator.evaluate(
             mission=mission_with_criteria,
-            attempt=attempt,
+            attempt=attempt_for_evaluation,
         )
 
         # ---------------------------------------------------------------
-        # Normalize AI criteria so Ground Truth can validate them
-        # against authoritative criterion IDs.
+        # Deterministic enforcement.
+        #
+        # Bedrock may reason about semantic correctness, but it cannot
+        # override mechanically verified Python syntax evidence.
         # ---------------------------------------------------------------
+
+        if syntax_result is not None:
+            bedrock_evaluation = self._enforce_python_syntax(
+                bedrock_evaluation,
+                syntax_result,
+            )
+
+            # Preserve deterministic validation evidence for Ground Truth.
+            bedrock_evaluation["validation"] = {
+                "python_syntax": syntax_result,
+            }
 
         bedrock_evaluation = self._normalize_criteria(
             bedrock_evaluation,
             mission_with_criteria["criteria"],
         )
 
-        # ---------------------------------------------------------------
-        # Deterministic validation.
-        #
-        # Ground Truth owns:
-        #   - passed
-        #   - score
-        #   - status
-        #   - criterion results
-        #
-        # Bedrock provides:
-        #   - evidence
-        #   - strengths
-        #   - weaknesses
-        #   - feedback
-        # ---------------------------------------------------------------
-
         ground_truth_result = self.ground_truth_evaluator.evaluate(
             mission=mission,
             evaluation=bedrock_evaluation,
         )
-
-        # ---------------------------------------------------------------
-        # Return the authoritative evaluation.
-        #
-        # Do NOT expose Bedrock's next_action as the authoritative
-        # learning progression decision. Adaptive progression is owned
-        # by adapt_learning_mission().
-        # ---------------------------------------------------------------
 
         return {
             **ground_truth_result,
@@ -91,12 +99,74 @@ class AssessmentService:
         }
 
     @staticmethod
+    def _enforce_python_syntax(
+        evaluation: dict[str, Any],
+        syntax_result: dict[str, Any],
+    ) -> dict[str, Any]:
+        """Prevent AI output from contradicting deterministic syntax evidence."""
+
+        if syntax_result.get("syntax_valid") is True:
+            syntax_terms = (
+                "syntax error",
+                "syntax errors",
+                "syntax issue",
+                "syntax issues",
+                "syntactically invalid",
+                "invalid syntax",
+                "missing colon",
+                "missing quote",
+                "unclosed bracket",
+                "unclosed parenthesis",
+            )
+
+            def contains_syntax_claim(value: Any) -> bool:
+                text = str(value).lower()
+                return any(term in text for term in syntax_terms)
+
+            cleaned = dict(evaluation)
+
+            cleaned["weaknesses"] = [
+                item
+                for item in evaluation.get("weaknesses", [])
+                if not contains_syntax_claim(item)
+            ]
+
+            if contains_syntax_claim(evaluation.get("feedback", "")):
+                cleaned["feedback"] = (
+                    "The Python submission is syntactically valid. "
+                    "Evaluation focuses on the demonstrated mission requirements."
+                )
+
+            if contains_syntax_claim(evaluation.get("next_action", "")):
+                cleaned["next_action"] = (
+                    "Continue improving the mission requirements "
+                    "that are not yet demonstrated."
+                )
+
+            cleaned["criteria"] = [
+                {
+                    **criterion,
+                    "evidence": (
+                        "Python syntax is valid; semantic evidence "
+                        "must be evaluated separately."
+                        if contains_syntax_claim(
+                            criterion.get("evidence", "")
+                        )
+                        else criterion.get("evidence", "")
+                    ),
+                }
+                for criterion in evaluation.get("criteria", [])
+            ]
+
+            return cleaned
+
+        return evaluation
+
+    @staticmethod
     def _normalize_criteria(
         evaluation: dict[str, Any],
         required_criteria: list[dict[str, str]],
     ) -> dict[str, Any]:
-        """Attach authoritative IDs when the model omits them."""
-
         criteria = evaluation.get("criteria")
 
         if not isinstance(criteria, list):
@@ -112,10 +182,6 @@ class AssessmentService:
             enriched = dict(criterion)
             criterion_id = enriched.get("id")
 
-            # -----------------------------------------------------------
-            # Prefer an exact criterion-name match.
-            # -----------------------------------------------------------
-
             if not criterion_id:
                 criterion_name = str(
                     enriched.get("name", "")
@@ -128,12 +194,6 @@ class AssessmentService:
                     ):
                         criterion_id = required["id"]
                         break
-
-            # -----------------------------------------------------------
-            # Bedrock is instructed to preserve criterion order.
-            # Only use positional matching when the complete list
-            # was returned.
-            # -----------------------------------------------------------
 
             if (
                 not criterion_id

@@ -154,7 +154,7 @@ export default function Mission() {
               },
               latest_attempt: null,
               attempt_text: null,
-              attempt_type: 'text',
+              attempt_type: 'code',
               evaluation: null,
               weaknesses: null,
               targeted_exercise: null,

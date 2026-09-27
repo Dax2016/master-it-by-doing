@@ -1,0 +1,42 @@
+from services.assessment.python_code_validator import PythonCodeValidator
+
+
+def test_command_line_quiz_structure():
+    code = '''
+questions = [
+    {"question": "What keyword is used to define a function?", "answer": "def"},
+    {"question": "What data type stores ordered items?", "answer": "list"},
+    {"question": "Which keyword starts a loop?", "answer": "while"},
+]
+
+
+def run_quiz():
+    score = 0
+
+    for item in questions:
+        print(item["question"])
+        answer = input("Your answer: ").strip().lower()
+
+        if answer == item["answer"]:
+            print("Correct!")
+            score += 1
+        else:
+            print(f"Incorrect. The correct answer is {item['answer']}.")
+
+    print(f"Final score: {score}/{len(questions)}")
+
+
+run_quiz()
+'''
+
+    result = PythonCodeValidator.validate(
+        code,
+        mission="Build a Command-Line Quiz",
+    )
+
+    assert result["syntax_valid"] is True
+    assert result["criteria"]["quiz_questions"] is True
+    assert result["criteria"]["answer_checking"] is True
+    assert result["criteria"]["score_tracking"] is True
+    assert result["criteria"]["multiple_questions"] is True
+    assert result["criteria"]["final_score"] is True

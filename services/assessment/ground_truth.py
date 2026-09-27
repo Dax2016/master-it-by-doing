@@ -1,13 +1,13 @@
-from typing import Any
+﻿from typing import Any
 
 
 class GroundTruthEvaluator:
     """
     Deterministic validation layer for learner evaluations.
 
-    Amazon Bedrock provides evidence and reasoning.
-    Ground Truth determines whether the learner actually
-    satisfies the mission's required criteria.
+    Ground Truth owns objective criterion results when deterministic
+    validation evidence is available. Bedrock provides evidence,
+    reasoning, strengths, weaknesses, and feedback.
     """
 
     def evaluate(
@@ -15,10 +15,7 @@ class GroundTruthEvaluator:
         mission: dict[str, Any],
         evaluation: dict[str, Any],
     ) -> dict[str, Any]:
-        """
-        Validate a Bedrock evaluation against deterministic
-        mission requirements.
-        """
+        """Validate an evaluation against deterministic requirements."""
 
         criteria = evaluation.get("criteria", [])
 
@@ -31,12 +28,17 @@ class GroundTruthEvaluator:
             mission
         )
 
+        deterministic_criteria = self._get_deterministic_criteria(
+            evaluation
+        )
+
         results = []
 
         for required in required_criteria:
             result = self._validate_criterion(
                 required,
                 criteria,
+                deterministic_criteria,
             )
             results.append(result)
 
@@ -75,6 +77,38 @@ class GroundTruthEvaluator:
         }
 
     @staticmethod
+    def _get_deterministic_criteria(
+        evaluation: dict[str, Any],
+    ) -> dict[str, bool]:
+        """
+        Extract authoritative criterion results from deterministic
+        validation evidence when available.
+        """
+
+        validation = evaluation.get("validation")
+
+        if not isinstance(validation, dict):
+            return {}
+
+        python_syntax = validation.get("python_syntax")
+
+        if not isinstance(python_syntax, dict):
+            return {}
+
+        if python_syntax.get("syntax_valid") is not True:
+            return {}
+
+        criteria = python_syntax.get("criteria")
+
+        if not isinstance(criteria, dict):
+            return {}
+
+        return {
+            str(criterion_id): value is True
+            for criterion_id, value in criteria.items()
+        }
+
+    @staticmethod
     def get_required_criteria(
         mission: dict[str, Any],
     ) -> list[dict[str, str]]:
@@ -91,10 +125,7 @@ class GroundTruthEvaluator:
             or ""
         ).strip().lower()
 
-        # --------------------------------------------------------
         # Python — Number Guessing Game
-        # --------------------------------------------------------
-
         if mission_title == "build a number guessing game":
             return [
                 {
@@ -126,10 +157,7 @@ class GroundTruthEvaluator:
                 },
             ]
 
-        # --------------------------------------------------------
         # Python — Command-Line Quiz
-        # --------------------------------------------------------
-
         if mission_title == "build a command-line quiz":
             return [
                 {
@@ -164,10 +192,7 @@ class GroundTruthEvaluator:
                 },
             ]
 
-        # --------------------------------------------------------
         # Python — Authenticated REST API
-        # --------------------------------------------------------
-
         if mission_title == "build an authenticated api":
             return [
                 {
@@ -205,10 +230,7 @@ class GroundTruthEvaluator:
                 },
             ]
 
-        # --------------------------------------------------------
         # Generic mission fallback
-        # --------------------------------------------------------
-
         skills = mission.get("skills", [])
 
         if not isinstance(skills, list):
@@ -227,13 +249,13 @@ class GroundTruthEvaluator:
     def _validate_criterion(
         required_criterion: dict[str, str],
         ai_criteria: list[dict[str, Any]],
+        deterministic_criteria: dict[str, bool],
     ) -> dict[str, Any]:
         """
-        Match an authoritative criterion against evidence
-        returned by Bedrock.
+        Validate one criterion.
 
-        The criterion ID belongs to Ground Truth.
-        Bedrock supplies the evidence and pass/fail assessment.
+        Deterministic validation takes precedence when an authoritative
+        result exists. Otherwise, Bedrock's criterion result is used.
         """
 
         required_id = required_criterion["id"]
@@ -243,11 +265,50 @@ class GroundTruthEvaluator:
             required_name.strip().lower()
         )
 
+        # ---------------------------------------------------------------
+        # Deterministic result takes precedence over AI pass/fail.
+        # ---------------------------------------------------------------
+
+        if required_id in deterministic_criteria:
+            for criterion in ai_criteria:
+                if not isinstance(criterion, dict):
+                    continue
+
+                if criterion.get("id") == required_id:
+                    evidence = str(
+                        criterion.get("evidence", "")
+                    )
+
+                    return {
+                        "id": required_id,
+                        "name": required_name,
+                        "passed": deterministic_criteria[
+                            required_id
+                        ],
+                        "evidence": evidence,
+                    }
+
+            return {
+                "id": required_id,
+                "name": required_name,
+                "passed": deterministic_criteria[
+                    required_id
+                ],
+                "evidence": (
+                    "Deterministic Python validation "
+                    "verified this criterion."
+                ),
+            }
+
+        # ---------------------------------------------------------------
+        # Fall back to AI evidence when deterministic validation does
+        # not provide a result for this criterion.
+        # ---------------------------------------------------------------
+
         for criterion in ai_criteria:
             if not isinstance(criterion, dict):
                 continue
 
-            # Prefer the authoritative criterion ID.
             if criterion.get("id") == required_id:
                 return {
                     "id": required_id,
@@ -260,7 +321,6 @@ class GroundTruthEvaluator:
                     ),
                 }
 
-            # Fall back to an exact criterion-name match.
             name = str(
                 criterion.get("name", "")
             ).strip().lower()
@@ -277,7 +337,6 @@ class GroundTruthEvaluator:
                     ),
                 }
 
-        # No evidence means the criterion fails.
         return {
             "id": required_id,
             "name": required_name,

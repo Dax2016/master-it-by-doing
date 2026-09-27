@@ -182,3 +182,87 @@ class AssessmentServiceTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+def test_valid_python_cannot_be_reported_as_syntax_error():
+    service = AssessmentService(
+        bedrock_evaluator=FakeBedrockEvaluator(),
+    )
+
+    valid_python = '''
+questions = [
+    {"question": "What keyword defines a function?", "answer": "def"},
+    {"question": "What data type stores ordered items?", "answer": "list"},
+]
+
+def run_quiz():
+    score = 0
+
+    for item in questions:
+        print(item["question"])
+        answer = input("Your answer: ").strip().lower()
+
+        if answer == item["answer"]:
+            print("Correct!")
+            score += 1
+
+    print(f"Final score: {score}/{len(questions)}")
+
+run_quiz()
+'''
+
+    result = service.evaluate(
+        mission={"title": "Build a Command-Line Quiz"},
+        attempt={
+            "skill": "python",
+            "attempt_type": "code",
+            "learner_response": valid_python,
+        },
+    )
+
+    assert "syntax error" not in result["feedback"].lower()
+    assert all(
+        "syntax error" not in str(item).lower()
+        for item in result["weaknesses"]
+    )
+
+
+def test_deterministic_quiz_criteria_override_ai_failure():
+    service = AssessmentService(
+        bedrock_evaluator=FakeBedrockEvaluator(),
+    )
+
+    valid_python = '''
+questions = [
+    {"question": "What keyword defines a function?", "answer": "def"},
+    {"question": "What data type stores ordered items?", "answer": "list"},
+]
+
+def run_quiz():
+    score = 0
+
+    for item in questions:
+        print(item["question"])
+        answer = input("Your answer: ").strip().lower()
+
+        if answer == item["answer"]:
+            print("Correct!")
+            score += 1
+
+    print(f"Final score: {score}/{len(questions)}")
+
+run_quiz()
+'''
+
+    result = service.evaluate(
+        mission={"title": "Build a Command-Line Quiz"},
+        attempt={
+            "skill": "python",
+            "attempt_type": "code",
+            "learner_response": valid_python,
+        },
+    )
+
+    assert result["score"] == 100
+    assert result["passed"] is True
+    assert result["passed_criteria"] == 5
+    assert result["total_criteria"] == 5
