@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 
 type Criterion = {
@@ -15,7 +15,6 @@ type Evaluation = {
   strengths: string[]
   weaknesses: string[]
   feedback: string
-  next_action: string
 }
 
 type MissionDetails = {
@@ -46,6 +45,13 @@ type TargetedExercise = {
   next_action: string
 }
 
+type NextMission = {
+  skill: string
+  title: string
+  description: string
+  skills: string[]
+}
+
 type AdaptedMission = {
   status: string
   learner_id: string
@@ -56,6 +62,8 @@ type AdaptedMission = {
   weaknesses: string[]
   targeted_exercise?: TargetedExercise
   next_action: string
+  next_mission?: NextMission | null
+  message?: string
 }
 
 type LearningState = {
@@ -106,57 +114,93 @@ export default function Mission() {
 
   const [error, setError] = useState('')
 
-  const missionLoadedRef = useRef(false)
-
   useEffect(() => {
-    if (missionLoadedRef.current) {
-      return
-    }
-
-    missionLoadedRef.current = true
-
     async function loadMission() {
       try {
         setIsLoadingMission(true)
         setError('')
+        setAttempt('')
+        setEvaluation(null)
 
-        const response = await fetch(
-          'http://127.0.0.1:8080/api/learning/start',
-          {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({
+        let data: StartLearningResponse
+
+        if (missionId === '2') {
+          data = {
+            status: 'started',
+            result: {
               learner_id: 'demo-learner',
               skill: 'python',
               level: 'beginner',
-            }),
-          },
-        )
+              goal: null,
+              mission: {
+                status: 'created',
+                skill: 'python',
+                learner_level: 'beginner',
+                mission: {
+                  title: 'Build a Command-Line Quiz',
+                  description:
+                    "Create a Python quiz program that asks multiple questions, checks the learner's answers, tracks the score, and displays the final result.",
+                  skills: [
+                    'Variables',
+                    'Input and output',
+                    'Conditionals',
+                    'Loops',
+                    'Functions',
+                    'Lists',
+                  ],
+                },
+                next_action:
+                  'Complete the mission and submit the attempt.',
+              },
+              latest_attempt: null,
+              attempt_text: null,
+              attempt_type: 'text',
+              evaluation: null,
+              weaknesses: null,
+              targeted_exercise: null,
+              adapted_mission: null,
+              next_action: 'submit_attempt',
+            },
+          }
+        } else {
+          const response = await fetch(
+            'http://127.0.0.1:8080/api/learning/start',
+            {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+              },
+              body: JSON.stringify({
+                learner_id: 'demo-learner',
+                skill: 'python',
+                level: 'beginner',
+              }),
+            },
+          )
 
-        const data =
-          (await response.json()) as StartLearningResponse
+          data =
+            (await response.json()) as StartLearningResponse
 
-        if (!response.ok) {
-          const detail = data.detail
+          if (!response.ok) {
+            const detail = data.detail
 
-          const message =
-            typeof detail === 'string'
-              ? detail
-              : typeof detail === 'object' &&
-                  detail !== null &&
-                  'message' in detail
-                ? String(
-                    (
-                      detail as {
-                        message: unknown
-                      }
-                    ).message,
-                  )
-                : 'Unable to load the learning mission.'
+            const message =
+              typeof detail === 'string'
+                ? detail
+                : typeof detail === 'object' &&
+                    detail !== null &&
+                    'message' in detail
+                  ? String(
+                      (
+                        detail as {
+                          message: unknown
+                        }
+                      ).message,
+                    )
+                  : 'Unable to load the learning mission.'
 
-          throw new Error(message)
+            throw new Error(message)
+          }
         }
 
         if (!data.result) {
@@ -184,7 +228,7 @@ export default function Mission() {
     }
 
     loadMission()
-  }, [])
+  }, [missionId])
 
   async function handleSubmit(
     event: React.FormEvent<HTMLFormElement>,
@@ -300,6 +344,14 @@ export default function Mission() {
 
   const adaptedExercise =
     adaptedMission?.targeted_exercise?.exercise ?? null
+
+  const nextMission =
+    adaptedMission?.next_mission ?? null
+
+  const isMastered =
+    evaluation?.passed === true &&
+    adaptedMission?.next_action ===
+      'create_advanced_mission'
 
   return (
     <main className="mission-page">
@@ -606,15 +658,76 @@ export default function Mission() {
                     </p>
                   </div>
 
-                  <div className="next-action">
-                    <span className="eyebrow">
-                      NEXT ACTION
-                    </span>
+                  {isMastered && nextMission && (
+                    <section className="adapted-mission">
+                      <div className="adapted-mission-header">
+                        <div>
+                          <span className="eyebrow">
+                            NEXT MISSION
+                          </span>
 
-                    <h3>
-                      {evaluation.next_action}
-                    </h3>
-                  </div>
+                          <h2>
+                            {nextMission.title}
+                          </h2>
+                        </div>
+
+                        <span className="status">
+                          READY
+                        </span>
+                      </div>
+
+                      <h3>
+                        What you'll build
+                      </h3>
+
+                      <p>
+                        {nextMission.description}
+                      </p>
+
+                      {nextMission.skills.length >
+                        0 && (
+                        <>
+                          <h3>
+                            Skills to practice
+                          </h3>
+
+                          <ul>
+                            {nextMission.skills.map(
+                              (skill) => (
+                                <li key={skill}>
+                                  {skill}
+                                </li>
+                              ),
+                            )}
+                          </ul>
+                        </>
+                      )}
+
+                      {adaptedMission.message && (
+                        <p>
+                          {adaptedMission.message}
+                        </p>
+                      )}
+
+                      <div className="next-action">
+                        <span className="eyebrow">
+                          MASTERY PROGRESSION
+                        </span>
+
+                        <h3>
+                          You mastered this mission.
+                          Your next challenge is ready.
+                        </h3>
+
+                        <Link
+                          to="/mission/2"
+                          className="next-mission-button"
+                        >
+                          Start Next Mission →
+                        </Link>
+                      </div>
+                    </section>
+                  )}
 
                   {learnerWeaknesses.length >
                     0 && (

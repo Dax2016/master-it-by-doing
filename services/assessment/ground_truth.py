@@ -127,6 +127,44 @@ class GroundTruthEvaluator:
             ]
 
         # --------------------------------------------------------
+        # Python — Command-Line Quiz
+        # --------------------------------------------------------
+
+        if mission_title == "build a command-line quiz":
+            return [
+                {
+                    "id": "quiz_questions",
+                    "name": (
+                        "Ask multiple quiz questions"
+                    ),
+                },
+                {
+                    "id": "answer_checking",
+                    "name": (
+                        "Check whether each answer is correct"
+                    ),
+                },
+                {
+                    "id": "score_tracking",
+                    "name": (
+                        "Track the learner's score"
+                    ),
+                },
+                {
+                    "id": "multiple_questions",
+                    "name": (
+                        "Process multiple questions in a loop"
+                    ),
+                },
+                {
+                    "id": "final_score",
+                    "name": (
+                        "Display the final quiz score"
+                    ),
+                },
+            ]
+
+        # --------------------------------------------------------
         # Python — Authenticated REST API
         # --------------------------------------------------------
 
