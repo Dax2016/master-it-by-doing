@@ -288,7 +288,7 @@ class LearningOrchestrator:
             {},
         )
 
-        return result
+        return self._extract_result(result)
 
     # ============================================================
     # COMPLETE LEARNING CYCLE

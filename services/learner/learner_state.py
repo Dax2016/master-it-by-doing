@@ -1,4 +1,5 @@
 from dataclasses import dataclass, field
+from typing import Any
 
 
 @dataclass
@@ -18,6 +19,10 @@ class LearnerState:
 
     strengths: list[str] = field(default_factory=list)
     weaknesses: list[str] = field(default_factory=list)
+
+    mastery: dict[str, dict[str, dict[str, Any]]] = field(
+        default_factory=dict
+    )
 
     def add_goal(self, goal: dict) -> None:
         """Record a learning goal."""
@@ -40,6 +45,36 @@ class LearnerState:
         self.strengths = strengths
         self.weaknesses = weaknesses
 
+    def record_mastery(
+        self,
+        skill: str,
+        mission: str,
+        status: str,
+        score: int,
+        passed: bool,
+        passed_criteria: int,
+        total_criteria: int,
+        evidence: dict | None = None,
+    ) -> None:
+        """
+        Persist authoritative mastery evidence for a mission.
+        """
+
+        skill_key = str(skill).strip()
+        mission_key = str(mission).strip()
+
+        if skill_key not in self.mastery:
+            self.mastery[skill_key] = {}
+
+        self.mastery[skill_key][mission_key] = {
+            "status": status,
+            "score": score,
+            "passed": passed,
+            "passed_criteria": passed_criteria,
+            "total_criteria": total_criteria,
+            "evidence": evidence or {},
+        }
+
     def to_dict(self) -> dict:
         """Return the learner state as a serializable dictionary."""
         return {
@@ -49,4 +84,5 @@ class LearnerState:
             "attempts": self.attempts,
             "strengths": self.strengths,
             "weaknesses": self.weaknesses,
+            "mastery": self.mastery,
         }

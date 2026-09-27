@@ -79,6 +79,29 @@ while True:
         assert evaluation["passed_criteria"] == 4
         assert evaluation["total_criteria"] == 4
 
+                # -----------------------------------------------------
+        # 4b. Mastery evidence must persist in learner state
+        # -----------------------------------------------------
+
+        state_result = await orchestrator.get_learner_state()
+
+        assert state_result is not None
+
+        learner_state = state_result["learner"]
+
+        assert "mastery" in learner_state
+        assert "Python" in learner_state["mastery"]
+
+        mission_mastery = learner_state["mastery"]["Python"][
+            "Build a Number Guessing Game"
+        ]
+
+        assert mission_mastery["status"] == "mastered"
+        assert mission_mastery["score"] == 100
+        assert mission_mastery["passed"] is True
+        assert mission_mastery["passed_criteria"] == 4
+        assert mission_mastery["total_criteria"] == 4
+
         # -----------------------------------------------------
         # 5. Adapt after mastery
         # -----------------------------------------------------

@@ -407,6 +407,43 @@ def evaluate_attempt(
         weaknesses=final_evaluation["weaknesses"],
     )
 
+    learner.record_mastery(
+        skill=skill,
+        mission=mission_data["mission"],
+        status=final_evaluation.get(
+            "status",
+            "needs_practice",
+        ),
+        score=final_evaluation.get("score", 0),
+        passed=final_evaluation.get("passed", False),
+        passed_criteria=final_evaluation.get(
+            "passed_criteria",
+            0,
+        ),
+        total_criteria=final_evaluation.get(
+            "total_criteria",
+            0,
+        ),
+        evidence={
+            "criteria": final_evaluation.get(
+                "criteria",
+                {},
+            ),
+            "strengths": final_evaluation.get(
+                "strengths",
+                [],
+            ),
+            "weaknesses": final_evaluation.get(
+                "weaknesses",
+                [],
+            ),
+            "feedback": final_evaluation.get(
+                "feedback",
+                "",
+            ),
+        },
+    )
+
     # -----------------------------------------------------------------------
     # Return authoritative evaluation.
     #
@@ -478,7 +515,11 @@ def identify_weaknesses(
         [],
     )
 
-    if not weaknesses:
+    mastery_status = evaluation.get("mastery_status")
+    passed = evaluation.get("passed")
+    is_mastered = passed is True and mastery_status == "mastered"
+
+    if is_mastered:
         return {
             "status": "identified",
             "skill": skill,
@@ -521,14 +562,6 @@ def generate_targeted_exercise(
     """
     Generate a practical exercise targeting the learner's weaknesses.
     """
-
-    if not weaknesses:
-        return {
-            "status": "error",
-            "message": (
-                "At least one weakness is required."
-            ),
-        }
 
     normalized_skill = skill.strip().lower()
 
@@ -813,7 +846,11 @@ def adapt_learning_mission(
     # Mastery path.
     # -----------------------------------------------------------------------
 
-    if not weaknesses:
+    mastery_status = evaluation.get("mastery_status")
+    passed = evaluation.get("passed")
+    is_mastered = passed is True and mastery_status == "mastered"
+
+    if is_mastered:
         current_mission = ""
 
         if learner.attempts:
@@ -918,3 +955,8 @@ if __name__ == "__main__":
     mcp.run(
         transport="streamable-http"
     )
+
+
+
+
+
