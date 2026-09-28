@@ -21,6 +21,30 @@ COURSE_CATALOG = {
                     "Loops",
                     "Functions",
                 ],
+                "criteria": [
+                    {
+                        "id": "random_number",
+                        "name": "Generate a random number between 1 and 10",
+                    },
+                    {
+                        "id": "user_input",
+                        "name": "Prompt user for a guess",
+                    },
+                    {
+                        "id": "feedback",
+                        "name": (
+                            "Compare guess to the number "
+                            "and provide appropriate feedback"
+                        ),
+                    },
+                    {
+                        "id": "multiple_attempts",
+                        "name": (
+                            "Allow multiple guessing attempts "
+                            "until correct"
+                        ),
+                    },
+                ],
             },
             {
                 "title": "Build a Command-Line Quiz",
@@ -36,6 +60,28 @@ COURSE_CATALOG = {
                     "Loops",
                     "Functions",
                     "Lists",
+                ],
+                "criteria": [
+                    {
+                        "id": "quiz_questions",
+                        "name": "Ask multiple quiz questions",
+                    },
+                    {
+                        "id": "answer_checking",
+                        "name": "Check whether each answer is correct",
+                    },
+                    {
+                        "id": "score_tracking",
+                        "name": "Track the learner's score",
+                    },
+                    {
+                        "id": "multiple_questions",
+                        "name": "Process multiple questions in a loop",
+                    },
+                    {
+                        "id": "final_score",
+                        "name": "Display the final quiz score",
+                    },
                 ],
             },
         ],

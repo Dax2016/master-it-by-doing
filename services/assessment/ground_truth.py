@@ -119,6 +119,36 @@ class GroundTruthEvaluator:
         evidence against them, but does not define them.
         """
 
+        catalog_criteria = mission.get("criteria")
+
+        if isinstance(catalog_criteria, list) and catalog_criteria:
+            normalized_criteria = []
+
+            for criterion in catalog_criteria:
+                if not isinstance(criterion, dict):
+                    continue
+
+                criterion_id = str(
+                    criterion.get("id", "")
+                ).strip()
+
+                criterion_name = str(
+                    criterion.get("name", "")
+                ).strip()
+
+                if not criterion_id or not criterion_name:
+                    continue
+
+                normalized_criteria.append(
+                    {
+                        "id": criterion_id,
+                        "name": criterion_name,
+                    }
+                )
+
+            if normalized_criteria:
+                return normalized_criteria
+
         mission_title = (
             mission.get("mission")
             or mission.get("title")

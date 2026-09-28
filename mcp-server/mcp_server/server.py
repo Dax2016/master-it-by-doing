@@ -63,6 +63,7 @@ def resolve_mission(
                 "mission": canonical["title"],
                 "description": canonical["description"],
                 "skills": canonical["skills"],
+                "criteria": canonical.get("criteria", []),
             }
 
     # Fallback for unknown missions.
