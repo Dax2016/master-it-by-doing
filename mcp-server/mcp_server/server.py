@@ -630,10 +630,53 @@ def generate_targeted_exercise(
             ),
         }
 
+    elif (
+        normalized_skill == "python"
+        and "multiple_questions" in failed_ids
+    ):
+        exercise = {
+            "title": (
+                "Quiz Loop Challenge"
+            ),
+            "objective": (
+                "Upgrade the quiz so multiple questions are "
+                "processed using a loop."
+            ),
+            "instructions": [
+                (
+                    "Store the quiz questions and expected answers "
+                    "in a list or another iterable structure."
+                ),
+                (
+                    "Use a loop to process each question "
+                    "without repeating the same code manually."
+                ),
+                (
+                    "Check each learner answer and increment "
+                    "the score when it is correct."
+                ),
+                (
+                    "Display the final score after the loop completes."
+                ),
+            ],
+            "success_signal": (
+                "The quiz processes multiple questions through "
+                "a loop and produces the correct final score."
+            ),
+            "targeted_skills": weaknesses,
+            "targeted_criteria": sorted(
+                failed_ids
+            ),
+        }
+
     elif normalized_skill == "python":
         exercise = {
             "title": (
                 "Build a Guessing Game Core"
+            ),
+            "objective": (
+                "Practice random number generation, learner input, "
+                "comparison, and conditional logic."
             ),
             "objective": (
                 "Practice random number generation, learner input, "
