@@ -6,6 +6,7 @@ Connects the Agent Orchestrator to the running
 Master It By Doing MCP server.
 """
 
+import os
 from typing import Any, Dict
 
 from mcp import ClientSession
@@ -17,9 +18,15 @@ class MCPLearningClient:
 
     def __init__(
         self,
-        server_url: str = "http://127.0.0.1:8000/mcp",
+        server_url: str | None = None,
     ):
-        self.server_url = server_url
+        self.server_url = (
+            server_url
+            or os.getenv(
+                "MCP_SERVER_URL",
+                "http://127.0.0.1:8000/mcp",
+            )
+        )
 
     async def list_tools(self) -> list[str]:
         """Return the tools exposed by the MCP server."""

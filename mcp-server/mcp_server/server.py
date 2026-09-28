@@ -1,10 +1,24 @@
+import os
+
 from services.assessment.assessment_service import AssessmentService
 from mcp.server.fastmcp import FastMCP
+from mcp.server.transport_security import TransportSecuritySettings
 
 from services.learner.learner_state import LearnerState
 
 
-mcp = FastMCP("Master It By Doing")
+allowed_hosts = [
+    host.strip()
+    for host in os.getenv("MCP_ALLOWED_HOSTS", "").split(",")
+    if host.strip()
+]
+
+mcp = FastMCP(
+    "Master It By Doing",
+    transport_security=TransportSecuritySettings(
+        allowed_hosts=allowed_hosts,
+    ),
+)
 
 learner = LearnerState(learner_id="demo-learner")
 
