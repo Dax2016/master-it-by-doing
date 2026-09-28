@@ -353,6 +353,15 @@ export default function Mission() {
     adaptedMission?.next_action ===
       'create_advanced_mission'
 
+  const learningLoopStatus =
+    isMastered
+      ? 'Mastery demonstrated'
+      : adaptedExercise
+        ? 'Targeted practice ready'
+        : evaluation
+          ? 'Evaluation complete'
+          : 'Mission in progress'
+
   return (
     <main className="mission-page">
       <nav className="mission-nav">
@@ -411,13 +420,7 @@ export default function Mission() {
           YOUR LEARNING LOOP
         </span>
 
-        <span>
-          {evaluation
-            ? evaluation.passed
-              ? 'Mastery demonstrated'
-              : 'Adaptation ready'
-            : 'Mission in progress'}
-        </span>
+        <span>{learningLoopStatus}</span>
       </div>
 
       <div className="learning-loop-steps">
