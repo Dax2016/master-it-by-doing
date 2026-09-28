@@ -5,6 +5,7 @@ from mcp.server.fastmcp import FastMCP
 from mcp.server.transport_security import TransportSecuritySettings
 
 from services.learner.learner_state import LearnerState
+from content.course_catalog import get_missions
 
 
 allowed_hosts = [
@@ -39,63 +40,11 @@ def resolve_mission(
     mission definition used by the assessment and Ground Truth layers.
     """
 
-    missions = {
-        "python": [
-            {
-                "title": "Build a Number Guessing Game",
-                "description": (
-                    "Create a Python program that generates a random number "
-                    "and lets the learner guess it."
-                ),
-                "skills": [
-                    "Variables",
-                    "Input and output",
-                    "Conditionals",
-                    "Loops",
-                    "Functions",
-                ],
-            },
-            {
-                "title": "Build a Command-Line Quiz",
-                "description": (
-                    "Create a Python quiz program that asks multiple questions, "
-                    "checks the learner's answers, tracks the score, and "
-                    "displays the final result."
-                ),
-                "skills": [
-                    "Variables",
-                    "Input and output",
-                    "Conditionals",
-                    "Loops",
-                    "Functions",
-                    "Lists",
-                ],
-            },
-        ],
-        "javascript": [
-            {
-                "title": "Build a Console To-Do List",
-                "description": (
-                    "Create a JavaScript program that allows a user to add, "
-                    "view, and remove tasks."
-                ),
-                "skills": [
-                    "Variables",
-                    "Arrays",
-                    "Functions",
-                    "Conditionals",
-                    "Loops",
-                ],
-            },
-        ],
-    }
-
     normalized_skill = skill.strip().lower()
     normalized_mission = mission.strip().lower()
 
-    canonical_missions = missions.get(
+    canonical_missions = get_missions(
         normalized_skill,
-        [],
     )
 
     for canonical in canonical_missions:
@@ -174,40 +123,14 @@ def create_mission(
     Create a practical hands-on learning mission.
     """
 
-    missions = {
-        "python": {
-            "title": "Build a Number Guessing Game",
-            "description": (
-                "Create a Python program that generates a random number "
-                "and lets the learner guess it."
-            ),
-            "skills": [
-                "Variables",
-                "Input and output",
-                "Conditionals",
-                "Loops",
-                "Functions",
-            ],
-        },
-        "javascript": {
-            "title": "Build a Console To-Do List",
-            "description": (
-                "Create a JavaScript program that allows a user to add, "
-                "view, and remove tasks."
-            ),
-            "skills": [
-                "Variables",
-                "Arrays",
-                "Functions",
-                "Conditionals",
-                "Loops",
-            ],
-        },
-    }
+    missions = get_missions(
+        skill,
+    )
 
-    mission = missions.get(
-        skill.strip().lower(),
-        {
+    if missions:
+        mission = missions[0]
+    else:
+        mission = {
             "title": f"Build a Practical {skill.title()} Project",
             "description": (
                 f"Complete a small hands-on project that demonstrates "
@@ -218,9 +141,7 @@ def create_mission(
                 "Problem solving",
                 "Practical implementation",
             ],
-        },
-    )
-
+        }
     return {
         "status": "created",
         "skill": skill,
@@ -742,75 +663,16 @@ def get_next_mission(
     """
     Return the next mission in the learner's progression path.
 
-    Current progression:
-
-        Python Mission 1
-            ↓
-        Python Mission 2
-            ↓
-        Learning path complete
-
-    The function is deterministic so the learner cannot
-    accidentally skip or receive an invented mission.
+    The ordered mission definitions come from the course catalog.
+    The function is deterministic so the learner cannot accidentally
+    skip or receive an invented mission.
     """
-
-    progression = {
-        "python": [
-            {
-                "title": "Build a Number Guessing Game",
-                "description": (
-                    "Create a Python program that generates a random number "
-                    "and lets the learner guess it."
-                ),
-                "skills": [
-                    "Variables",
-                    "Input and output",
-                    "Conditionals",
-                    "Loops",
-                    "Functions",
-                ],
-            },
-            {
-                "title": "Build a Command-Line Quiz",
-                "description": (
-                    "Create a Python quiz program that asks multiple questions, "
-                    "checks the learner's answers, tracks the score, and "
-                    "displays the final result."
-                ),
-                "skills": [
-                    "Variables",
-                    "Input and output",
-                    "Conditionals",
-                    "Loops",
-                    "Functions",
-                    "Lists",
-                ],
-            },
-        ],
-        "javascript": [
-            {
-                "title": "Build a Console To-Do List",
-                "description": (
-                    "Create a JavaScript program that allows a user to add, "
-                    "view, and remove tasks."
-                ),
-                "skills": [
-                    "Variables",
-                    "Arrays",
-                    "Functions",
-                    "Conditionals",
-                    "Loops",
-                ],
-            },
-        ],
-    }
 
     normalized_skill = skill.strip().lower()
     normalized_mission = current_mission.strip().lower()
 
-    missions = progression.get(
+    missions = get_missions(
         normalized_skill,
-        [],
     )
 
     for index, mission in enumerate(missions):
@@ -1012,8 +874,3 @@ if __name__ == "__main__":
     mcp.run(
         transport="streamable-http"
     )
-
-
-
-
-

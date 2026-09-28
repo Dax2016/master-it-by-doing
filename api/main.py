@@ -65,6 +65,8 @@ class StartLearningRequest(BaseModel):
         min_length=1,
     )
 
+    mission: str | None = None
+
 
 class AttemptRequest(BaseModel):
     """
@@ -156,6 +158,7 @@ async def start_learning(
         learner_id=request.learner_id,
         skill=request.skill,
         level=request.level,
+        mission=request.mission,
     )
 
     # -----------------------------------------------------------------------

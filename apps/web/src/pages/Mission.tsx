@@ -124,83 +124,47 @@ export default function Mission() {
 
         let data: StartLearningResponse
 
-        if (missionId === '2') {
-          data = {
-            status: 'started',
-            result: {
+        const response = await fetch(
+          'http://127.0.0.1:8080/api/learning/start',
+          {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
               learner_id: 'demo-learner',
               skill: 'python',
               level: 'beginner',
-              goal: null,
-              mission: {
-                status: 'created',
-                skill: 'python',
-                learner_level: 'beginner',
-                mission: {
-                  title: 'Build a Command-Line Quiz',
-                  description:
-                    "Create a Python quiz program that asks multiple questions, checks the learner's answers, tracks the score, and displays the final result.",
-                  skills: [
-                    'Variables',
-                    'Input and output',
-                    'Conditionals',
-                    'Loops',
-                    'Functions',
-                    'Lists',
-                  ],
-                },
-                next_action:
-                  'Complete the mission and submit the attempt.',
-              },
-              latest_attempt: null,
-              attempt_text: null,
-              attempt_type: 'code',
-              evaluation: null,
-              weaknesses: null,
-              targeted_exercise: null,
-              adapted_mission: null,
-              next_action: 'submit_attempt',
-            },
-          }
-        } else {
-          const response = await fetch(
-            'http://127.0.0.1:8080/api/learning/start',
-            {
-              method: 'POST',
-              headers: {
-                'Content-Type': 'application/json',
-              },
-              body: JSON.stringify({
-                learner_id: 'demo-learner',
-                skill: 'python',
-                level: 'beginner',
-              }),
-            },
-          )
+              mission:
+                missionId === '2'
+                  ? 'Build a Command-Line Quiz'
+                  : undefined,
+            }),
+          },
+        )
 
-          data =
-            (await response.json()) as StartLearningResponse
+        data =
+          (await response.json()) as StartLearningResponse
 
-          if (!response.ok) {
-            const detail = data.detail
+        if (!response.ok) {
+          const detail = data.detail
 
-            const message =
-              typeof detail === 'string'
-                ? detail
-                : typeof detail === 'object' &&
-                    detail !== null &&
-                    'message' in detail
-                  ? String(
-                      (
-                        detail as {
-                          message: unknown
-                        }
-                      ).message,
-                    )
-                  : 'Unable to load the learning mission.'
+          const message =
+            typeof detail === 'string'
+              ? detail
+              : typeof detail === 'object' &&
+                  detail !== null &&
+                  'message' in detail
+                ? String(
+                    (
+                      detail as {
+                        message: unknown
+                      }
+                    ).message,
+                  )
+                : 'Unable to load the learning mission.'
 
-            throw new Error(message)
-          }
+          throw new Error(message)
         }
 
         if (!data.result) {
