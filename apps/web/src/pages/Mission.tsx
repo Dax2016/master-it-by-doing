@@ -347,11 +347,14 @@ export default function Mission() {
 
   const nextMission =
     adaptedMission?.next_mission ?? null
-
   const isMastered =
-    evaluation?.passed === true &&
+  evaluation?.passed === true &&
+  (
     adaptedMission?.next_action ===
-      'create_advanced_mission'
+      'create_advanced_mission' ||
+    adaptedMission?.next_action ===
+      'learning_path_complete'
+  )
 
   const learningLoopStatus =
     isMastered
