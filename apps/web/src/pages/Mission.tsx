@@ -401,11 +401,71 @@ export default function Mission() {
       )}
 
       {!isLoadingMission && mission && (
-        <>
-          <section className="mission-header">
-            <span className="eyebrow">
-              PRACTICAL MISSION
-            </span>
+  <>
+    <section
+      className="learning-loop"
+      aria-label="Learning progress"
+    >
+      <div className="learning-loop-heading">
+        <span className="eyebrow">
+          YOUR LEARNING LOOP
+        </span>
+
+        <span>
+          {evaluation
+            ? evaluation.passed
+              ? 'Mastery demonstrated'
+              : 'Adaptation ready'
+            : 'Mission in progress'}
+        </span>
+      </div>
+
+      <div className="learning-loop-steps">
+        <div className="learning-step active">
+          <span>01</span>
+          <strong>MISSION</strong>
+        </div>
+
+        <div className="learning-step active">
+          <span>02</span>
+          <strong>BUILD</strong>
+        </div>
+
+        <div
+          className={`learning-step ${
+            evaluation ? 'active' : ''
+          }`}
+        >
+          <span>03</span>
+          <strong>EVALUATE</strong>
+        </div>
+
+        <div
+          className={`learning-step ${
+            adaptedExercise || isMastered
+              ? 'active'
+              : ''
+          }`}
+        >
+          <span>04</span>
+          <strong>ADAPT</strong>
+        </div>
+
+        <div
+          className={`learning-step ${
+            isMastered ? 'active' : ''
+          }`}
+        >
+          <span>05</span>
+          <strong>MASTER</strong>
+        </div>
+      </div>
+    </section>
+
+    <section className="mission-header">
+      <span className="eyebrow">
+        PRACTICAL MISSION
+      </span>
 
             <h1>{mission.title}</h1>
 
