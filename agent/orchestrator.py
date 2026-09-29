@@ -24,6 +24,7 @@ from dataclasses import dataclass
 from typing import Any, Dict, List, Optional
 
 from agent.mcp_client import MCPLearningClient
+from content.course_catalog import get_missions
 
 
 @dataclass
@@ -85,10 +86,22 @@ class LearningOrchestrator:
             skill=skill,
             level=level,
             mission=(
-                {
-                    "mission": mission.strip(),
-                    "skill": skill,
-                }
+                next(
+                    (
+                        {
+                            **catalog_mission,
+                            "mission": catalog_mission["title"],
+                            "skill": skill,
+                        }
+                        for catalog_mission in get_missions(skill)
+                        if catalog_mission.get("title", "").strip().lower()
+                        == mission.strip().lower()
+                    ),
+                    {
+                        "mission": mission.strip(),
+                        "skill": skill,
+                    },
+                )
                 if mission and mission.strip()
                 else None
             ),
@@ -860,3 +873,6 @@ class LearningOrchestrator:
             return value
 
         return str(value)
+
+
+
