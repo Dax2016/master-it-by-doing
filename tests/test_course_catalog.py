@@ -1,5 +1,6 @@
 from content.course_catalog import (
     COURSE_CATALOG,
+    get_concept_for_mission,
     get_concepts,
     get_course,
     get_missions,
@@ -138,3 +139,23 @@ def test_all_concepts_have_learning_content():
             assert len(concept["examples"]) > 0
             assert len(concept["practice"]) > 0
             assert len(concept["misconceptions"]) > 0
+
+
+def test_get_concept_for_mission():
+    concept = get_concept_for_mission(
+        "python",
+        "build-number-guessing-game",
+    )
+
+    assert concept is not None
+    assert concept["id"] == "python-loops"
+    assert concept["title"] == "Loops"
+
+
+def test_get_concept_for_unknown_mission_returns_none():
+    concept = get_concept_for_mission(
+        "python",
+        "unknown-mission",
+    )
+
+    assert concept is None

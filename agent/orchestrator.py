@@ -24,7 +24,10 @@ from dataclasses import dataclass
 from typing import Any, Dict, List, Optional
 
 from agent.mcp_client import MCPLearningClient
-from content.course_catalog import get_missions
+from content.course_catalog import (
+    get_concept_for_mission,
+    get_missions,
+)
 
 
 @dataclass
@@ -37,6 +40,7 @@ class LearnerSession:
 
     goal: Optional[Dict[str, Any]] = None
     mission: Optional[Dict[str, Any]] = None
+    concept: Optional[Dict[str, Any]] = None
 
     latest_attempt: Optional[Dict[str, Any]] = None
     attempt_text: Optional[str] = None
@@ -145,6 +149,15 @@ class LearningOrchestrator:
         )
 
         self.session.mission = self._extract_result(result)
+
+        mission_data = self.session.mission.get("mission", {})
+        mission_id = mission_data.get("id")
+
+        if mission_id:
+            self.session.concept = get_concept_for_mission(
+                self.session.skill,
+                mission_id,
+            )
 
         return result
 
@@ -401,6 +414,19 @@ class LearningOrchestrator:
 
         self.session.mission = mission
 
+        mission_data = mission.get("mission", mission)
+        mission_id = (
+            mission_data.get("id")
+            if isinstance(mission_data, dict)
+            else None
+        )
+
+        if mission_id:
+            self.session.concept = get_concept_for_mission(
+                self.session.skill,
+                mission_id,
+            )
+
     def record_attempt(
         self,
         attempt: Dict[str, Any],
@@ -501,6 +527,7 @@ class LearningOrchestrator:
             "level": self.session.level,
             "goal": self.session.goal,
             "mission": self.session.mission,
+            "concept": self.session.concept,
             "latest_attempt": self.session.latest_attempt,
             "attempt_text": self.session.attempt_text,
             "attempt_type": self.session.attempt_type,

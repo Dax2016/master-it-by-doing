@@ -217,3 +217,17 @@ def get_concepts(skill: str) -> list[dict]:
         return []
 
     return course.get("concepts", [])
+
+
+def get_concept_for_mission(
+    skill: str,
+    mission_id: str,
+) -> dict | None:
+    """Return the concept associated with a mission ID."""
+    concepts = get_concepts(skill)
+
+    for concept in concepts:
+        if mission_id in concept.get("mission_ids", []):
+            return concept
+
+    return None

@@ -252,3 +252,21 @@ def test_orchestrator_next_action_sequence():
     })
 
     assert orchestrator.next_action() == "continue_learning"
+
+def test_orchestrator_resolves_concept_for_canonical_mission():
+    orchestrator = LearningOrchestrator(
+        learner_id="concept-test",
+        skill="Python",
+        level="beginner",
+    )
+
+    orchestrator.record_mission({
+        "id": "build-number-guessing-game",
+        "title": "Build a Number Guessing Game",
+    })
+
+    concept = orchestrator.session.concept
+
+    assert concept is not None
+    assert concept["id"] == "python-loops"
+    assert concept["title"] == "Loops"
