@@ -5,8 +5,7 @@ from mcp.server.fastmcp import FastMCP
 from mcp.server.transport_security import TransportSecuritySettings
 
 from services.learner.learner_state import LearnerState
-from content.course_catalog import get_missions
-
+from content.course_catalog import get_concepts as get_catalog_concepts, get_missions
 
 allowed_hosts = [
     host.strip()
@@ -112,6 +111,25 @@ def create_learning_goal(
 
 
 # ---------------------------------------------------------------------------
+# CONCEPT DISCOVERY
+# ---------------------------------------------------------------------------
+
+@mcp.tool()
+def get_concepts(
+    skill: str,
+) -> dict:
+    """
+    Return the learning concepts available for a skill.
+    """
+
+    concepts = get_catalog_concepts(skill)
+
+    return {
+        "skill": skill,
+        "concepts": concepts,
+    }
+
+
 # MISSION CREATION
 # ---------------------------------------------------------------------------
 

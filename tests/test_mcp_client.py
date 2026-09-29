@@ -12,6 +12,7 @@ def test_mcp_client_lists_learning_tools():
         expected_tools = {
             "create_learning_goal",
             "create_mission",
+            "get_concepts",
             "submit_attempt",
             "evaluate_attempt",
             "identify_weaknesses",

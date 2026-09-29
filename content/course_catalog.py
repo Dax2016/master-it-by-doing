@@ -7,8 +7,36 @@ COURSE_CATALOG = {
             "Build practical Python programs while developing "
             "core programming skills."
         ),
-        "missions": [
+        "concepts": [
             {
+                "id": "python-loops",
+                "title": "Loops",
+                "description": (
+                    "Use loops to repeat actions and process multiple "
+                    "iterations of a task."
+                ),
+                "prerequisites": [],
+                "misconceptions": [
+                    "A loop always runs forever.",
+                    "A loop is only useful for numbers.",
+                ],
+                "examples": [
+                    "Use a for loop to process each item in a list.",
+                    "Use a while loop to repeat until a condition is met.",
+                ],
+                "practice": [
+                    "Write a loop that prints the numbers 1 through 10.",
+                    "Write a loop that keeps asking for input until the user enters quit.",
+                ],
+                "mission_ids": [
+                    "build-number-guessing-game",
+                ],
+            },
+        ],
+        "missions": [
+
+            {
+                "id": "build-number-guessing-game",
                 "title": "Build a Number Guessing Game",
                 "description": (
                     "Create a Python program that generates a random number "
@@ -47,8 +75,9 @@ COURSE_CATALOG = {
                 ],
             },
             {
-                "title": "Build a Command-Line Quiz",
-                "description": (
+                    "id": "build-command-line-quiz",
+                    "title": "Build a Command-Line Quiz",
+                    "description": (
                     "Create a Python quiz program that asks multiple questions, "
                     "checks the learner's answers, tracks the score, and "
                     "displays the final result."
@@ -96,7 +125,8 @@ COURSE_CATALOG = {
         ),
         "missions": [
             {
-                "title": "Build a Serverless Hello World API",
+            "id": "build-serverless-hello-world-api",
+            "title": "Build a Serverless Hello World API",
                 "description": (
                     "Create an AWS Lambda function that returns a JSON response "
                     "and expose it through Amazon API Gateway."
@@ -139,6 +169,7 @@ COURSE_CATALOG = {
         ),
         "missions": [
             {
+                "id": "build-console-to-do-list",
                 "title": "Build a Console To-Do List",
                 "description": (
                     "Create a JavaScript program that allows a user to add, "
@@ -176,3 +207,13 @@ def get_missions(skill: str) -> list[dict]:
         return []
 
     return course["missions"]
+
+
+def get_concepts(skill: str) -> list[dict]:
+    """Return the concepts for a skill."""
+    course = get_course(skill)
+
+    if course is None:
+        return []
+
+    return course.get("concepts", [])

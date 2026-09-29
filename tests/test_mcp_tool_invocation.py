@@ -29,3 +29,27 @@ def test_create_learning_goal_through_mcp():
         assert len(result.content) > 0
 
     asyncio.run(run())
+def test_get_concepts_through_mcp():
+
+    async def run():
+        client = MCPLearningClient()
+
+        result = await client.call_tool(
+            "get_concepts",
+            {
+                "skill": "Python",
+            },
+        )
+
+        assert result is not None
+        assert hasattr(result, "content")
+        assert len(result.content) > 0
+
+        text = result.content[0].text
+
+        assert "python-loops" in text
+        assert "Loops" in text
+        assert "examples" in text
+        assert "practice" in text
+
+    asyncio.run(run())
