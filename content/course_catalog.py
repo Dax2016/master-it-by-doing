@@ -113,6 +113,44 @@ COURSE_CATALOG = {
                     },
                 ],
             },
+            {
+                "id": "build-expense-tracker",
+                "title": "Build a Function-Based Expense Tracker",
+                "description": (
+                    "Create a Python program that lets the learner add expenses, "
+                    "calculate the total, and display the recorded expenses "
+                    "using reusable functions."
+                ),
+                "skills": [
+                    "Variables",
+                    "Input and output",
+                    "Lists",
+                    "Loops",
+                    "Functions",
+                ],
+                "criteria": [
+                    {
+                        "id": "expense_storage",
+                        "name": "Store multiple expenses in a list",
+                    },
+                    {
+                        "id": "add_expense_function",
+                        "name": "Use a function to add an expense",
+                    },
+                    {
+                        "id": "total_expense_function",
+                        "name": "Use a function to calculate the total expenses",
+                    },
+                    {
+                        "id": "multiple_expenses",
+                        "name": "Process multiple expenses using a loop",
+                    },
+                    {
+                        "id": "expense_summary",
+                        "name": "Display the expenses and calculated total",
+                    },
+                ],
+            },
         ],
     },
     "aws-cloud": {

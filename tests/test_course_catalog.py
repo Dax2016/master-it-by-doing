@@ -13,12 +13,13 @@ def test_catalog_contains_python_javascript_and_aws_cloud():
     assert "aws-cloud" in COURSE_CATALOG
 
 
-def test_python_has_two_missions():
+def test_python_has_three_missions():
     missions = get_missions("python")
 
-    assert len(missions) == 2
+    assert len(missions) == 3
     assert missions[0]["title"] == "Build a Number Guessing Game"
     assert missions[1]["title"] == "Build a Command-Line Quiz"
+    assert missions[2]["title"] == "Build a Function-Based Expense Tracker"
 
 
 def test_javascript_has_one_mission():
@@ -74,6 +75,7 @@ def test_python_missions_have_stable_ids():
 
     assert missions[0]["id"] == "build-number-guessing-game"
     assert missions[1]["id"] == "build-command-line-quiz"
+    assert missions[2]["id"] == "build-expense-tracker"
 
 
 def test_concept_references_existing_mission():

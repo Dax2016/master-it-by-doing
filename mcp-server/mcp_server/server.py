@@ -137,6 +137,7 @@ def get_concepts(
 def create_mission(
     skill: str,
     learner_level: str = "beginner",
+    concept_id: str | None = None,
 ) -> dict:
     """
     Create a practical hands-on learning mission.
@@ -146,9 +147,42 @@ def create_mission(
         skill,
     )
 
-    if missions:
-        mission = missions[0]
+    if concept_id:
+        mission = next(
+            (
+                candidate
+                for candidate in missions
+                if concept_id in [
+                    concept.get("id")
+                    for concept in get_catalog_concepts(skill)
+                    if candidate.get("id")
+                    in concept.get("mission_ids", [])
+                ]
+            ),
+            None,
+        )
     else:
+        mastered_missions = {
+            mission_title
+            for mission_title, result in learner.mastery.get(
+                skill,
+                {},
+            ).items()
+            if result.get("status") == "mastered"
+            and result.get("passed") is True
+        }
+
+        mission = next(
+            (
+                candidate
+                for candidate in missions
+                if candidate.get("title") not in mastered_missions
+            ),
+            None,
+        )
+        
+
+    if mission is None:
         mission = {
             "title": f"Build a Practical {skill.title()} Project",
             "description": (
