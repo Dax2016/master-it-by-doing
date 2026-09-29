@@ -86,6 +86,49 @@ COURSE_CATALOG = {
             },
         ],
     },
+    "aws-cloud": {
+        "id": "aws-cloud-computing",
+        "title": "AWS Cloud Computing",
+        "difficulty": "beginner",
+        "description": (
+            "Build practical cloud applications using core AWS services "
+            "and serverless architecture."
+        ),
+        "missions": [
+            {
+                "title": "Build a Serverless Hello World API",
+                "description": (
+                    "Create an AWS Lambda function that returns a JSON response "
+                    "and expose it through Amazon API Gateway."
+                ),
+                "skills": [
+                    "AWS Lambda",
+                    "Amazon API Gateway",
+                    "JSON",
+                    "Serverless architecture",
+                    "Cloud deployment",
+                ],
+                "criteria": [
+                    {
+                        "id": "lambda_function",
+                        "name": "Create an AWS Lambda function",
+                    },
+                    {
+                        "id": "json_response",
+                        "name": "Return a JSON response from the Lambda function",
+                    },
+                    {
+                        "id": "api_gateway",
+                        "name": "Expose the Lambda function through API Gateway",
+                    },
+                    {
+                        "id": "api_test",
+                        "name": "Test the API endpoint and verify the expected response",
+                    },
+                ],
+            },
+        ],
+    },
     "javascript": {
         "id": "javascript-development",
         "title": "JavaScript Development",
@@ -116,7 +159,13 @@ COURSE_CATALOG = {
 
 def get_course(skill: str) -> dict | None:
     """Return the course definition for a skill."""
-    return COURSE_CATALOG.get(skill.strip().lower())
+    normalized_skill = (
+        skill.strip()
+        .lower()
+        .replace(" ", "-")
+    )
+
+    return COURSE_CATALOG.get(normalized_skill)
 
 
 def get_missions(skill: str) -> list[dict]:
