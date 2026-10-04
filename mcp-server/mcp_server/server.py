@@ -863,6 +863,7 @@ def get_next_mission(
                 next_mission = missions[next_index]
 
                 return {
+                    "id": next_mission["id"],
                     "skill": skill,
                     "title": next_mission["title"],
                     "description": next_mission["description"],
