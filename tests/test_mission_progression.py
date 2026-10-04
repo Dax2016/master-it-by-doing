@@ -104,6 +104,42 @@ while True:
         assert mission_mastery["total_criteria"] == 4
 
         # -----------------------------------------------------
+        # 4c. Evidence and capability must persist
+        # -----------------------------------------------------
+
+        assert "evidence" in learner_state
+        assert "capabilities" in learner_state
+
+        assert len(learner_state["evidence"]) == 1
+        assert len(learner_state["capabilities"]) == 1
+
+        evidence = learner_state["evidence"][0]
+        capability = learner_state["capabilities"][0]
+
+        assert evidence["learner_id"] == orchestrator.session.learner_id
+        assert evidence["skill"] == "Python"
+        assert evidence["mission_id"] == mission_1["mission"]["id"]
+        assert evidence["score"] == 100
+        assert evidence["passed"] is True
+        assert evidence["passed_criteria"] == 4
+        assert evidence["total_criteria"] == 4
+
+        assert "evidence_id" in orchestrator.session.latest_attempt
+        assert (
+            orchestrator.session.latest_attempt["evidence_id"]
+            == evidence["id"]
+        )
+
+        assert capability["learner_id"] == orchestrator.session.learner_id
+        assert capability["skill"] == "Python"
+        assert capability["mission_id"] == mission_1["mission"]["id"]
+        assert capability["status"] == "demonstrated"
+        assert capability["score"] == 100
+        assert capability["passed"] is True
+        assert capability["evidence_ids"] == [evidence["id"]]
+        assert capability["demonstrated_criteria"]
+
+        # -----------------------------------------------------
         # 5. Adapt after mastery
         # -----------------------------------------------------
 

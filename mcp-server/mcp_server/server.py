@@ -1,11 +1,16 @@
 import os
+import uuid
 
 from services.assessment.assessment_service import AssessmentService
 from mcp.server.fastmcp import FastMCP
 from mcp.server.transport_security import TransportSecuritySettings
 
 from services.learner.learner_state import LearnerState
-from content.course_catalog import get_concepts as get_catalog_concepts, get_missions
+from content.course_catalog import (
+    get_concept_for_mission,
+    get_concepts as get_catalog_concepts,
+    get_missions,
+)
 
 allowed_hosts = [
     host.strip()
@@ -415,6 +420,92 @@ def evaluate_attempt(
         )
 
     # -----------------------------------------------------------------------
+    # Create structured evidence from the authoritative evaluation.
+    # -----------------------------------------------------------------------
+
+    evidence = {
+        "id": f"evidence-{uuid.uuid4().hex[:12]}",
+        "learner_id": learner.learner_id,
+        "skill": skill,
+        "mission_id": mission_data.get("id"),
+        "mission": mission_data.get("mission"),
+        "attempt_type": normalized_type,
+        "score": final_evaluation.get("score", 0),
+        "passed": final_evaluation.get("passed", False),
+        "passed_criteria": final_evaluation.get(
+            "passed_criteria",
+            0,
+        ),
+        "total_criteria": final_evaluation.get(
+            "total_criteria",
+            0,
+        ),
+        "criteria": final_evaluation.get(
+            "criteria",
+            {},
+        ),
+        "strengths": final_evaluation.get(
+            "strengths",
+            [],
+        ),
+        "weaknesses": final_evaluation.get(
+            "weaknesses",
+            [],
+        ),
+        "feedback": final_evaluation.get(
+            "feedback",
+            "",
+        ),
+    }
+
+    learner.add_evidence(evidence)
+
+    if matching_attempt is not None:
+        matching_attempt["evidence_id"] = evidence["id"]
+    else:
+        learner.attempts[-1]["evidence_id"] = evidence["id"]
+
+    # -----------------------------------------------------------------------
+    # Derive demonstrated capability from successful evidence.
+    # -----------------------------------------------------------------------
+
+    if final_evaluation.get("passed") is True:
+        concept = get_concept_for_mission(
+            skill=skill,
+            mission_id=mission_data.get("id", ""),
+        )
+
+        demonstrated_criteria = [
+            criterion
+            for criterion in final_evaluation.get(
+                "criteria",
+                [],
+            )
+            if isinstance(criterion, dict)
+            and criterion.get("passed") is True
+        ]
+
+        capability = {
+            "id": f"capability-{uuid.uuid4().hex[:12]}",
+            "learner_id": learner.learner_id,
+            "skill": skill,
+            "mission_id": mission_data.get("id"),
+            "mission": mission_data.get("mission"),
+            "concept_id": (
+                concept.get("id")
+                if concept
+                else None
+            ),
+            "status": "demonstrated",
+            "score": final_evaluation.get("score", 0),
+            "passed": True,
+            "evidence_ids": [evidence["id"]],
+            "demonstrated_criteria": demonstrated_criteria,
+        }
+
+        learner.add_capability(capability)
+
+    # -----------------------------------------------------------------------
     # Update learner profile.
     # -----------------------------------------------------------------------
 
@@ -497,6 +588,7 @@ def evaluate_attempt(
         "strengths": final_evaluation["strengths"],
         "weaknesses": final_evaluation["weaknesses"],
         "feedback": final_evaluation["feedback"],
+        "evidence_id": evidence["id"],
     }
 
 

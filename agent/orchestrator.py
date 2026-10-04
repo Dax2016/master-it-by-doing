@@ -259,6 +259,9 @@ class LearningOrchestrator:
             **(self.session.latest_attempt or {}),
             "mission_id": mission_id,
             "evaluation": self.session.evaluation,
+            "evidence_id": self.session.evaluation.get(
+                "evidence_id"
+            ),
         }
 
         return result

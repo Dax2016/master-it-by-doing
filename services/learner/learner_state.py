@@ -17,6 +17,9 @@ class LearnerState:
     completed_missions: list[dict] = field(default_factory=list)
     attempts: list[dict] = field(default_factory=list)
 
+    evidence: list[dict] = field(default_factory=list)
+    capabilities: list[dict] = field(default_factory=list)
+
     strengths: list[str] = field(default_factory=list)
     weaknesses: list[str] = field(default_factory=list)
 
@@ -35,6 +38,14 @@ class LearnerState:
     def add_completed_mission(self, mission: dict) -> None:
         """Record a completed mission."""
         self.completed_missions.append(mission)
+
+    def add_evidence(self, evidence: dict) -> None:
+        """Record evidence produced by an evaluated attempt."""
+        self.evidence.append(evidence)
+
+    def add_capability(self, capability: dict) -> None:
+        """Record a demonstrated learner capability."""
+        self.capabilities.append(capability)
 
     def update_skill_profile(
         self,
@@ -82,6 +93,8 @@ class LearnerState:
             "goals": self.goals,
             "completed_missions": self.completed_missions,
             "attempts": self.attempts,
+            "evidence": self.evidence,
+            "capabilities": self.capabilities,
             "strengths": self.strengths,
             "weaknesses": self.weaknesses,
             "mastery": self.mastery,
