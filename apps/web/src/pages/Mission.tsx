@@ -18,6 +18,7 @@ type Evaluation = {
 }
 
 type MissionDetails = {
+  id: string
   title: string
   description: string
   skills?: string[]
@@ -46,6 +47,7 @@ type TargetedExercise = {
 }
 
 type NextMission = {
+  id: string
   skill: string
   title: string
   description: string
@@ -135,10 +137,7 @@ export default function Mission() {
               learner_id: 'demo-learner',
               skill: 'python',
               level: 'beginner',
-              mission:
-                missionId === '2'
-                  ? 'Build a Command-Line Quiz'
-                  : undefined,
+              mission_id: missionId ?? undefined,
             }),
           },
         )
@@ -202,7 +201,7 @@ export default function Mission() {
     const trimmedAttempt = attempt.trim()
 
     const currentMission =
-      learningState?.mission?.mission
+      learningState?.mission
 
     if (
       !trimmedAttempt ||
@@ -232,13 +231,19 @@ export default function Mission() {
             level: learningState.level,
             mission: currentMission.title,
             attempt: trimmedAttempt,
-            attempt_type: 'text',
+            attempt_type: 'code',
           }),
         },
       )
 
       const data =
         (await response.json()) as AttemptResponse
+      console.log('Submission response status:', response.status)
+      console.log('Submission response content-type:', response.headers.get('content-type'))
+      console.log(
+      'Submission response body:',
+      JSON.stringify(data, null, 2),
+)
 
       if (!response.ok) {
         const detail = data.detail
@@ -750,7 +755,7 @@ export default function Mission() {
                         </h3>
 
                         <Link
-                          to="/mission/2"
+                          to={`/mission/${nextMission.id}`}
                           className="next-mission-button"
                         >
                           Start Next Mission →

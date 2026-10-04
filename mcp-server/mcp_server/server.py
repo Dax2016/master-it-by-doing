@@ -20,7 +20,22 @@ mcp = FastMCP(
     ),
 )
 
-learner = LearnerState(learner_id="demo-learner")
+learners: dict[str, LearnerState] = {}
+
+
+def get_learner(
+    learner_id: str = "demo-learner",
+) -> LearnerState:
+    """Return the isolated learner state for a learner ID."""
+
+    normalized_id = learner_id.strip() or "demo-learner"
+
+    if normalized_id not in learners:
+        learners[normalized_id] = LearnerState(
+            learner_id=normalized_id,
+        )
+
+    return learners[normalized_id]
 
 # AI evidence collection plus deterministic mission validation.
 assessment_service = AssessmentService()
@@ -57,6 +72,7 @@ def resolve_mission(
             or canonical_title in normalized_mission
         ):
             return {
+                "id": canonical["id"],
                 "skill": skill,
                 "title": canonical["title"],
                 "mission": canonical["title"],
@@ -85,10 +101,14 @@ def resolve_mission(
 def create_learning_goal(
     skill: str,
     learner_level: str = "beginner",
+    learner_id: str = "demo-learner",
 ) -> dict:
+
     """
     Create and record a practical learning goal for the learner.
     """
+
+    learner = get_learner(learner_id)
 
     goal = {
         "skill": skill,
@@ -138,10 +158,12 @@ def create_mission(
     skill: str,
     learner_level: str = "beginner",
     concept_id: str | None = None,
+    learner_id: str = "demo-learner",
 ) -> dict:
     """
     Create a practical hands-on learning mission.
     """
+    learner = get_learner(learner_id)
 
     missions = get_missions(
         skill,
@@ -180,7 +202,7 @@ def create_mission(
             ),
             None,
         )
-        
+
 
     if mission is None:
         mission = {
@@ -216,11 +238,13 @@ def submit_attempt(
     mission: str,
     learner_response: str,
     attempt_type: str = "text",
+    learner_id: str = "demo-learner",
 ) -> dict:
+
     """
     Submit and record a learner's work for evaluation.
     """
-
+    learner = get_learner(learner_id)
     valid_attempt_types = {
         "code",
         "text",
@@ -279,6 +303,7 @@ def evaluate_attempt(
     mission: str,
     learner_response: str,
     attempt_type: str = "text",
+    learner_id: str = "demo-learner",
 ) -> dict:
     """
     Evaluate a learner's submitted work using Amazon Bedrock,
@@ -292,6 +317,7 @@ def evaluate_attempt(
         next_action. They are handled deterministically by
         adapt_learning_mission().
     """
+    learner = get_learner(learner_id)
 
     valid_attempt_types = {
         "code",
@@ -333,6 +359,7 @@ def evaluate_attempt(
         "learner_id": learner.learner_id,
         "skill": skill,
         "mission": mission,
+        "mission_id": mission_data.get("id"),
         "attempt_type": normalized_type,
         "learner_response": learner_response,
     }
@@ -376,6 +403,7 @@ def evaluate_attempt(
             break
 
     if matching_attempt is not None:
+        matching_attempt["mission_id"] = attempt_data.get("mission_id")
         matching_attempt["evaluation"] = final_evaluation
 
     else:
@@ -729,10 +757,12 @@ def get_next_mission(
     )
 
     for index, mission in enumerate(missions):
+        mission_id = mission["id"].strip().lower()
         mission_title = mission["title"].strip().lower()
 
         if (
-            mission_title == normalized_mission
+            mission_id == normalized_mission
+            or mission_title == normalized_mission
             or normalized_mission.startswith(mission_title)
         ):
             next_index = index + 1
@@ -760,6 +790,7 @@ def get_next_mission(
 def adapt_learning_mission(
     skill: str,
     evaluation: dict,
+    learner_id: str = "demo-learner",
 ) -> dict:
     """
     Adapt the learner's next action based on an attempt evaluation.
@@ -767,6 +798,7 @@ def adapt_learning_mission(
     Progression decisions are deterministic and do not depend
     on Bedrock's generated next_action.
     """
+    learner = get_learner(learner_id)
 
     if evaluation.get("status") != "evaluated":
         return {
@@ -823,17 +855,17 @@ def adapt_learning_mission(
     is_mastered = passed is True and mastery_status == "mastered"
 
     if is_mastered:
-        current_mission = ""
+        current_mission_id = ""
 
         if learner.attempts:
-            current_mission = learner.attempts[-1].get(
-                "mission",
+            current_mission_id = learner.attempts[-1].get(
+                "mission_id",
                 "",
             )
 
         next_mission = get_next_mission(
             skill=skill,
-            current_mission=current_mission,
+            current_mission=current_mission_id,
         )
 
         # ---------------------------------------------------------------
@@ -908,13 +940,15 @@ def adapt_learning_mission(
 # ---------------------------------------------------------------------------
 
 @mcp.tool()
-def get_learner_state() -> dict:
-    """
-    Return the learner's current learning state.
-    """
+def get_learner_state(
+    learner_id: str = "demo-learner",
+) -> dict:
+    """Return the complete state for one learner."""
+
+    learner = get_learner(learner_id)
 
     return {
-        "status": "retrieved",
+        "status": "success",
         "learner": learner.to_dict(),
     }
 

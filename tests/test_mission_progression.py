@@ -1,4 +1,5 @@
 import asyncio
+import uuid
 
 from agent.orchestrator import LearningOrchestrator
 
@@ -6,7 +7,7 @@ from agent.orchestrator import LearningOrchestrator
 def test_mission_progression_after_mastery():
     async def run():
         orchestrator = LearningOrchestrator(
-            learner_id="progression-learner",
+            learner_id=f"progression-learner-{uuid.uuid4()}",
             skill="Python",
             level="beginner",
         )

@@ -70,6 +70,7 @@ class LearningOrchestrator:
         skill: str,
         level: str,
         mission: Optional[str] = None,
+        mission_id: Optional[str] = None,
         mcp_client: Optional[MCPLearningClient] = None,
     ):
         """
@@ -98,16 +99,34 @@ class LearningOrchestrator:
                             "skill": skill,
                         }
                         for catalog_mission in get_missions(skill)
-                        if catalog_mission.get("title", "").strip().lower()
-                        == mission.strip().lower()
+                        if (
+                            mission_id
+                            and catalog_mission.get("id") == mission_id.strip()
+                        )
                     ),
-                    {
-                        "mission": mission.strip(),
-                        "skill": skill,
-                    },
+                    None,
                 )
-                if mission and mission.strip()
-                else None
+                if mission_id and mission_id.strip()
+                else (
+                    next(
+                        (
+                            {
+                                **catalog_mission,
+                                "mission": catalog_mission["title"],
+                                "skill": skill,
+                            }
+                            for catalog_mission in get_missions(skill)
+                            if catalog_mission.get("title", "").strip().lower()
+                            == mission.strip().lower()
+                        ),
+                        {
+                            "mission": mission.strip(),
+                            "skill": skill,
+                        },
+                    )
+                    if mission and mission.strip()
+                    else None
+                )
             ),
         )
 
@@ -125,6 +144,7 @@ class LearningOrchestrator:
             {
                 "skill": self.session.skill,
                 "learner_level": self.session.level,
+                "learner_id": self.session.learner_id,
             },
         )
 
@@ -145,6 +165,7 @@ class LearningOrchestrator:
             {
                 "skill": self.session.skill,
                 "learner_level": self.session.level,
+                "learner_id": self.session.learner_id,
             },
         )
 
@@ -185,12 +206,13 @@ class LearningOrchestrator:
 
         result = await self.mcp.call_tool(
             "submit_attempt",
-            {
-                "skill": self.session.skill,
-                "mission": mission_text,
-                "learner_response": attempt,
-                "attempt_type": attempt_type,
-            },
+        {
+            "skill": self.session.skill,
+            "mission": mission_text,
+            "learner_response": attempt,
+            "attempt_type": attempt_type,
+            "learner_id": self.session.learner_id,
+      },
         )
 
         self.session.latest_attempt = self._extract_result(result)
@@ -218,18 +240,29 @@ class LearningOrchestrator:
             )
 
         result = await self.mcp.call_tool(
-            "evaluate_attempt",
-            {
-                "skill": self.session.skill,
-                "mission": mission_text,
-                "learner_response": self.session.attempt_text,
-                "attempt_type": self.session.attempt_type,
-            },
+        "evaluate_attempt",
+   {
+        "skill": self.session.skill,
+        "mission": mission_text,
+        "learner_response": self.session.attempt_text,
+        "attempt_type": self.session.attempt_type,
+        "learner_id": self.session.learner_id,
+    },
         )
 
         self.session.evaluation = self._extract_result(result)
 
+        mission_data = self.session.mission or {}
+        mission_id = mission_data.get("id")
+
+        self.session.latest_attempt = {
+            **(self.session.latest_attempt or {}),
+            "mission_id": mission_id,
+            "evaluation": self.session.evaluation,
+        }
+
         return result
+
 
     async def identify_weaknesses(self) -> Any:
         """Identify weaknesses from the evaluation."""
@@ -295,11 +328,12 @@ class LearningOrchestrator:
             )
 
         result = await self.mcp.call_tool(
-            "adapt_learning_mission",
-            {
-                "skill": self.session.skill,
-                "evaluation": self.session.evaluation,
-            },
+        "adapt_learning_mission",
+   {
+        "skill": self.session.skill,
+        "evaluation": self.session.evaluation,
+        "learner_id": self.session.learner_id,
+   },
         )
 
         self.session.adapted_mission = self._extract_result(result)
@@ -311,7 +345,9 @@ class LearningOrchestrator:
 
         result = await self.mcp.call_tool(
             "get_learner_state",
-            {},
+       {
+           "learner_id": self.session.learner_id,
+     }
         )
 
         return self._extract_result(result)

@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 
 interface MissionDetails {
+  id: string
   title: string
   description: string
   skills: string[]
@@ -230,7 +231,7 @@ export default function Dashboard() {
 
               {mission && (
                 <Link
-                  to="/mission/1"
+                  to={`/mission/${mission.id}`}
                   className="primary-btn"
                 >
                   Continue mission →

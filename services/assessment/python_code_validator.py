@@ -50,11 +50,92 @@ class PythonCodeValidator:
             criteria = PythonCodeValidator._validate_quiz(
                 tree
             )
+        elif normalized_mission == "build a function-based expense tracker":
+            criteria = PythonCodeValidator._validate_expense_tracker(
+                tree
+            )
 
         return {
             "syntax_valid": True,
             "error": None,
             "criteria": criteria,
+        }
+
+
+    @staticmethod
+    def _validate_expense_tracker(tree: ast.AST) -> dict[str, bool]:
+        """Deterministically detect Expense Tracker requirements."""
+
+        nodes = list(ast.walk(tree))
+
+        has_expenses_list = any(
+            isinstance(node, ast.Assign)
+            and isinstance(node.value, ast.List)
+            and any(
+                isinstance(target, ast.Name)
+                and target.id == "expenses"
+                for target in node.targets
+            )
+            for node in nodes
+        )
+
+        has_add_expense_function = any(
+            isinstance(node, ast.FunctionDef)
+            and node.name == "add_expense"
+            for node in nodes
+        )
+
+        has_add_expense_append = any(
+            isinstance(node, ast.Call)
+            and isinstance(node.func, ast.Attribute)
+            and node.func.attr == "append"
+            and isinstance(node.func.value, ast.Name)
+            and node.func.value.id == "expenses"
+            for node in nodes
+        )
+
+        has_calculate_total_function = any(
+            isinstance(node, ast.FunctionDef)
+            and node.name == "calculate_total"
+            for node in nodes
+        )
+
+        has_sum_expenses = any(
+            isinstance(node, ast.Call)
+            and isinstance(node.func, ast.Name)
+            and node.func.id == "sum"
+            and any(
+                isinstance(argument, ast.Name)
+                and argument.id == "expenses"
+                for argument in node.args
+            )
+            for node in nodes
+        )
+
+        has_loop = any(
+            isinstance(node, (ast.For, ast.While))
+            for node in nodes
+        )
+
+        has_expense_print = any(
+            isinstance(node, ast.Call)
+            and isinstance(node.func, ast.Name)
+            and node.func.id == "print"
+            for node in nodes
+        )
+
+        return {
+            "expense_storage": has_expenses_list,
+            "add_expense_function": (
+                has_add_expense_function
+                and has_add_expense_append
+            ),
+            "total_expense_function": (
+                has_calculate_total_function
+                and has_sum_expenses
+            ),
+            "multiple_expenses": has_loop,
+            "expense_summary": has_expense_print,
         }
 
     @staticmethod

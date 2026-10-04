@@ -66,6 +66,7 @@ class StartLearningRequest(BaseModel):
     )
 
     mission: str | None = None
+    mission_id: str | None = None
 
 
 class AttemptRequest(BaseModel):
@@ -159,6 +160,7 @@ async def start_learning(
         skill=request.skill,
         level=request.level,
         mission=request.mission,
+        mission_id=request.mission_id,
     )
 
     # -----------------------------------------------------------------------
@@ -269,6 +271,7 @@ async def submit_mission_attempt(
         skill=request.skill,
         level=request.level,
         mission=request.mission,
+        mission_id=mission_id,
     )
 
     # -----------------------------------------------------------------------
