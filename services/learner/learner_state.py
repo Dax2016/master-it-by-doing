@@ -75,8 +75,28 @@ class LearnerState:
                     "demonstrated_criteria",
                     [],
                 ):
-                    if criterion not in existing_criteria:
+                    criterion_id = criterion.get("id")
+
+                    if not criterion_id:
+                        if criterion not in existing_criteria:
+                            existing_criteria.append(criterion)
+                        continue
+
+                    existing_index = next(
+                        (
+                            index
+                            for index, existing_criterion in enumerate(
+                                existing_criteria
+                            )
+                            if existing_criterion.get("id") == criterion_id
+                        ),
+                        None,
+                    )
+
+                    if existing_index is None:
                         existing_criteria.append(criterion)
+                    else:
+                        existing_criteria[existing_index] = criterion
 
                 existing["attempts"] = existing.get(
                     "attempts",
