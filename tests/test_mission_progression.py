@@ -152,6 +152,16 @@ while True:
 
         assert adapted_mission["status"] == "adapted"
 
+        assert "capability_profile" in adapted_mission
+        assert len(adapted_mission["capability_profile"]) == 1
+
+        capability_profile = adapted_mission["capability_profile"][0]
+
+        assert capability_profile["skill"] == "Python"
+        assert capability_profile["missions"] == 1
+        assert capability_profile["attempts"] == 1
+        assert capability_profile["best_score"] == 100
+
         # -----------------------------------------------------
         # 6. Mastery must trigger progression
         # -----------------------------------------------------

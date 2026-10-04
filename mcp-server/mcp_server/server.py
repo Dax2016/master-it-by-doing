@@ -939,6 +939,8 @@ def adapt_learning_mission(
         weaknesses=weaknesses,
     )
 
+    capability_profile = learner.get_capability_profile()
+
     # -----------------------------------------------------------------------
     # Mastery path.
     # -----------------------------------------------------------------------
@@ -974,6 +976,7 @@ def adapt_learning_mission(
                 "passed": passed,
                 "strengths": strengths,
                 "weaknesses": [],
+                "capability_profile": capability_profile,
                 "next_action": "learning_path_complete",
                 "next_mission": None,
                 "message": (
@@ -994,6 +997,7 @@ def adapt_learning_mission(
             "passed": passed,
             "strengths": strengths,
             "weaknesses": [],
+            "capability_profile": capability_profile,
             "next_action": "create_advanced_mission",
             "next_mission": next_mission,
             "message": (
@@ -1020,6 +1024,7 @@ def adapt_learning_mission(
         "passed": passed,
         "strengths": strengths,
         "weaknesses": weaknesses,
+        "capability_profile": capability_profile,
         "targeted_exercise": targeted_exercise,
         "next_action": (
             "Complete the targeted exercise, submit the attempt, "
