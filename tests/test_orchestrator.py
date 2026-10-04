@@ -270,3 +270,58 @@ def test_orchestrator_resolves_concept_for_canonical_mission():
     assert concept is not None
     assert concept["id"] == "python-loops"
     assert concept["title"] == "Loops"
+
+def test_orchestrator_gets_capability_profile():
+
+    class FakeMCPClient:
+        async def call_tool(self, tool_name, arguments):
+            assert tool_name == "get_capability_profile"
+            assert arguments == {
+                "learner_id": "capability-test-learner",
+            }
+
+            class Result:
+                content = [
+                    type(
+                        "Content",
+                        (),
+                        {
+                            "text": (
+                                '{"status": "success", '
+                                '"learner_id": "capability-test-learner", '
+                                '"capabilities": ['
+                                '{"skill": "Python", '
+                                '"missions": 2, '
+                                '"best_score": 100}'
+                                ']}'
+                            )
+                        },
+                    )()
+                ]
+
+            return Result()
+
+    async def run():
+        orchestrator = LearningOrchestrator(
+            learner_id="capability-test-learner",
+            skill="Python",
+            level="beginner",
+            mcp_client=FakeMCPClient(),
+        )
+
+        result = await orchestrator.get_capability_profile()
+
+        assert result["status"] == "success"
+        assert result["learner_id"] == "capability-test-learner"
+        assert len(result["capabilities"]) == 1
+        assert result["capabilities"][0]["skill"] == "Python"
+        assert result["capabilities"][0]["missions"] == 2
+        assert result["capabilities"][0]["best_score"] == 100
+
+        state = orchestrator.get_state()
+
+        assert state["capability_profile"] == result
+
+    import asyncio
+
+    asyncio.run(run())

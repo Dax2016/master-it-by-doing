@@ -48,6 +48,7 @@ class LearnerSession:
 
     evaluation: Optional[Dict[str, Any]] = None
     weaknesses: Optional[Dict[str, Any]] = None
+    capability_profile: Optional[Dict[str, Any]] = None
 
     targeted_exercise: Optional[Dict[str, Any]] = None
     adapted_mission: Optional[Dict[str, Any]] = None
@@ -343,6 +344,21 @@ class LearningOrchestrator:
 
         return result
 
+    async def get_capability_profile(self) -> Any:
+        """Retrieve the learner's demonstrated capability profile."""
+
+        result = await self.mcp.call_tool(
+            "get_capability_profile",
+            {
+                "learner_id": self.session.learner_id,
+            },
+        )
+
+        self.session.capability_profile = self._extract_result(result)
+
+        return self.session.capability_profile
+
+
     async def get_learner_state(self) -> Any:
         """Retrieve the learner's current state."""
 
@@ -572,6 +588,7 @@ class LearningOrchestrator:
             "attempt_type": self.session.attempt_type,
             "evaluation": self.session.evaluation,
             "weaknesses": self.session.weaknesses,
+            "capability_profile": self.session.capability_profile,
             "targeted_exercise": self.session.targeted_exercise,
             "adapted_mission": self.session.adapted_mission,
             "next_action": self.next_action(),
