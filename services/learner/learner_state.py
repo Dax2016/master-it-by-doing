@@ -44,7 +44,70 @@ class LearnerState:
         self.evidence.append(evidence)
 
     def add_capability(self, capability: dict) -> None:
-        """Record a demonstrated learner capability."""
+        """Record or update a demonstrated learner capability."""
+
+        learner_id = capability.get("learner_id")
+        mission_id = capability.get("mission_id")
+
+        for existing in self.capabilities:
+            if (
+                existing.get("learner_id") == learner_id
+                and existing.get("mission_id") == mission_id
+            ):
+                existing_evidence = existing.setdefault(
+                    "evidence_ids",
+                    [],
+                )
+
+                for evidence_id in capability.get(
+                    "evidence_ids",
+                    [],
+                ):
+                    if evidence_id not in existing_evidence:
+                        existing_evidence.append(evidence_id)
+
+                existing_criteria = existing.setdefault(
+                    "demonstrated_criteria",
+                    [],
+                )
+
+                for criterion in capability.get(
+                    "demonstrated_criteria",
+                    [],
+                ):
+                    if criterion not in existing_criteria:
+                        existing_criteria.append(criterion)
+
+                existing["attempts"] = existing.get(
+                    "attempts",
+                    1,
+                ) + 1
+
+                new_score = capability.get(
+                    "score",
+                    existing.get("score", 0),
+                )
+
+                existing["score"] = new_score
+                existing["best_score"] = max(
+                    existing.get(
+                        "best_score",
+                        existing.get("score", 0),
+                    ),
+                    new_score,
+                )
+
+                return
+
+        capability["attempts"] = capability.get(
+            "attempts",
+            1,
+        )
+        capability["best_score"] = capability.get(
+            "score",
+            0,
+        )
+
         self.capabilities.append(capability)
 
     def update_skill_profile(
