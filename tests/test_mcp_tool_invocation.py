@@ -53,3 +53,27 @@ def test_get_concepts_through_mcp():
         assert "practice" in text
 
     asyncio.run(run())
+
+def test_get_capability_profile_through_mcp():
+
+    async def run():
+        client = MCPLearningClient()
+
+        result = await client.call_tool(
+            "get_capability_profile",
+            {
+                "learner_id": "integration-test-learner",
+            },
+        )
+
+        assert result is not None
+        assert hasattr(result, "content")
+        assert len(result.content) > 0
+
+        text = result.content[0].text
+
+        assert '"status": "success"' in text
+        assert '"learner_id": "integration-test-learner"' in text
+        assert '"capabilities":' in text
+
+    asyncio.run(run())

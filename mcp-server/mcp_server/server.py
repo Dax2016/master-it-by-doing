@@ -1046,6 +1046,21 @@ def get_learner_state(
     }
 
 
+@mcp.tool()
+def get_capability_profile(
+    learner_id: str = "demo-learner",
+) -> dict:
+    """Return the learner's demonstrated capabilities aggregated by skill."""
+
+    learner = get_learner(learner_id)
+
+    return {
+        "status": "success",
+        "learner_id": learner.learner_id,
+        "capabilities": learner.get_capability_profile(),
+    }
+
+
 # ---------------------------------------------------------------------------
 # SERVER ENTRY POINT
 # ---------------------------------------------------------------------------
