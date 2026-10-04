@@ -144,3 +144,67 @@ def test_capability_criteria_are_deduplicated_by_id():
     assert capability["demonstrated_criteria"][0]["evidence"] == (
         "Multiple expenses are stored in the list."
     )
+
+def test_capability_profile_aggregates_across_missions():
+    learner = LearnerState(
+        learner_id="test-learner",
+    )
+
+    learner.add_capability(
+        {
+            "id": "capability-1",
+            "learner_id": "test-learner",
+            "skill": "Python",
+            "mission_id": "mission-1",
+            "mission": "Build a Command-Line Quiz",
+            "concept_id": None,
+            "status": "demonstrated",
+            "score": 80,
+            "passed": True,
+            "evidence_ids": ["evidence-1"],
+            "demonstrated_criteria": [
+                {"id": "quiz_questions", "passed": True},
+                {"id": "score_tracking", "passed": True},
+            ],
+        }
+    )
+
+    learner.add_capability(
+        {
+            "id": "capability-2",
+            "learner_id": "test-learner",
+            "skill": "Python",
+            "mission_id": "mission-2",
+            "mission": "Build an Expense Tracker",
+            "concept_id": None,
+            "status": "demonstrated",
+            "score": 100,
+            "passed": True,
+            "evidence_ids": ["evidence-2"],
+            "demonstrated_criteria": [
+                {"id": "expense_storage", "passed": True},
+                {"id": "total_expense_function", "passed": True},
+            ],
+        }
+    )
+
+    profile = learner.get_capability_profile()
+
+    assert len(profile) == 1
+
+    python_profile = profile[0]
+
+    assert python_profile["skill"] == "Python"
+    assert python_profile["missions"] == 2
+    assert python_profile["attempts"] == 2
+    assert python_profile["evidence_ids"] == [
+        "evidence-1",
+        "evidence-2",
+    ]
+    assert python_profile["best_score"] == 100
+    assert python_profile["demonstrated_criteria"] == [
+        {"id": "quiz_questions", "passed": True},
+        {"id": "score_tracking", "passed": True},
+        {"id": "expense_storage", "passed": True},
+        {"id": "total_expense_function", "passed": True},
+    ]

@@ -182,3 +182,79 @@ class LearnerState:
             "weaknesses": self.weaknesses,
             "mastery": self.mastery,
         }
+    def get_capability_profile(self) -> list[dict]:
+        """
+        Aggregate demonstrated capabilities across missions by skill.
+        """
+
+        profiles: dict[str, dict] = {}
+
+        for capability in self.capabilities:
+            skill = str(capability.get("skill", "")).strip()
+
+            if not skill:
+                continue
+
+            if skill not in profiles:
+                profiles[skill] = {
+                    "skill": skill,
+                    "missions": 0,
+                    "attempts": 0,
+                    "evidence_ids": [],
+                    "best_score": 0,
+                    "demonstrated_criteria": [],
+                }
+
+            profile = profiles[skill]
+
+            profile["missions"] += 1
+            profile["attempts"] += capability.get(
+                "attempts",
+                1,
+            )
+
+            for evidence_id in capability.get(
+                "evidence_ids",
+                [],
+            ):
+                if evidence_id not in profile["evidence_ids"]:
+                    profile["evidence_ids"].append(evidence_id)
+
+            profile["best_score"] = max(
+                profile["best_score"],
+                capability.get(
+                    "best_score",
+                    capability.get("score", 0),
+                ),
+            )
+
+            existing_criteria = profile["demonstrated_criteria"]
+
+            for criterion in capability.get(
+                "demonstrated_criteria",
+                [],
+            ):
+                criterion_id = criterion.get("id")
+
+                if not criterion_id:
+                    if criterion not in existing_criteria:
+                        existing_criteria.append(criterion)
+                    continue
+
+                existing_index = next(
+                    (
+                        index
+                        for index, existing_criterion in enumerate(
+                            existing_criteria
+                        )
+                        if existing_criterion.get("id") == criterion_id
+                    ),
+                    None,
+                )
+
+                if existing_index is None:
+                    existing_criteria.append(criterion)
+                else:
+                    existing_criteria[existing_index] = criterion
+
+        return list(profiles.values())
