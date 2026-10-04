@@ -266,3 +266,123 @@ run_quiz()
     assert result["passed"] is True
     assert result["passed_criteria"] == 5
     assert result["total_criteria"] == 5
+
+def test_deterministic_expense_tracker_criteria_override_ai_failure():
+    class FailingBedrockEvaluator:
+        def evaluate(
+            self,
+            mission: dict[str, Any],
+            attempt: dict[str, Any],
+        ) -> dict[str, Any]:
+            return {
+                "score": 20,
+                "passed": False,
+                "criteria": [
+                    {
+                        "id": "expense_storage",
+                        "name": "Store multiple expenses in a list",
+                        "passed": False,
+                        "evidence": "AI incorrectly reports that expenses are not stored.",
+                    },
+                    {
+                        "id": "add_expense_function",
+                        "name": "Use a function to add an expense",
+                        "passed": False,
+                        "evidence": "AI incorrectly reports that add_expense is missing.",
+                    },
+                    {
+                        "id": "total_expense_function",
+                        "name": "Use a function to calculate the total expenses",
+                        "passed": False,
+                        "evidence": "AI incorrectly reports that calculate_total is invalid.",
+                    },
+                    {
+                        "id": "multiple_expenses",
+                        "name": "Process multiple expenses using a loop",
+                        "passed": False,
+                        "evidence": "AI incorrectly reports that no loop is used.",
+                    },
+                    {
+                        "id": "expense_summary",
+                        "name": "Display the expenses and calculated total",
+                        "passed": False,
+                        "evidence": "AI incorrectly reports that the summary is missing.",
+                    },
+                ],
+                "strengths": [],
+                "weaknesses": ["AI-generated false negative."],
+                "feedback": "AI-generated evaluation is intentionally incorrect.",
+                "next_action": "Retry the mission.",
+            }
+
+    service = AssessmentService(
+        bedrock_evaluator=FailingBedrockEvaluator(),
+    )
+
+    valid_python = '''
+expenses = []
+
+
+def add_expense(name, amount):
+    expenses.append((name, amount))
+
+
+def calculate_total():
+    total = 0
+
+    for name, amount in expenses:
+        total += amount
+
+    return total
+
+
+def display_expenses():
+    for name, amount in expenses:
+        print(f"{name}: ${amount:.2f}")
+
+
+add_expense("Food", 25.50)
+add_expense("Transport", 15.00)
+add_expense("Internet", 30.00)
+
+display_expenses()
+print(f"Total: ${calculate_total():.2f}")
+'''
+
+    result = service.evaluate(
+        mission={
+            "title": "Build a Function-Based Expense Tracker",
+            "criteria": [
+                {
+                    "id": "expense_storage",
+                    "name": "Store multiple expenses in a list",
+                },
+                {
+                    "id": "add_expense_function",
+                    "name": "Use a function to add an expense",
+                },
+                {
+                    "id": "total_expense_function",
+                    "name": "Use a function to calculate the total expenses",
+                },
+                {
+                    "id": "multiple_expenses",
+                    "name": "Process multiple expenses using a loop",
+                },
+                {
+                    "id": "expense_summary",
+                    "name": "Display the expenses and calculated total",
+                },
+            ],
+        },
+        attempt={
+            "skill": "python",
+            "attempt_type": "code",
+            "learner_response": valid_python,
+        },
+    )
+
+    assert result["score"] == 100
+    assert result["passed"] is True
+    assert result["passed_criteria"] == 5
+    assert result["total_criteria"] == 5

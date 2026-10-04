@@ -87,7 +87,7 @@ class AssessmentService:
         )
 
         ground_truth_result = self.ground_truth_evaluator.evaluate(
-            mission=mission,
+            mission=mission_with_criteria,
             evaluation=bedrock_evaluation,
         )
 

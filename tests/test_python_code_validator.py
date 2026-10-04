@@ -104,3 +104,105 @@ print("Total:", calculate_total())
     assert result_with_loop["criteria"]["total_expense_function"] is True
     assert result_with_loop["criteria"]["multiple_expenses"] is True
     assert result_with_loop["criteria"]["expense_summary"] is True
+def test_expense_tracker_accepts_loop_based_total_calculation():
+    code = '''
+expenses = []
+
+
+def add_expense(name, amount):
+    expenses.append((name, amount))
+
+
+def calculate_total():
+    total = 0
+
+    for name, amount in expenses:
+        total += amount
+
+    return total
+
+
+def display_expenses():
+    for name, amount in expenses:
+        print(f"{name}: ${amount:.2f}")
+
+
+add_expense("Food", 25.50)
+add_expense("Transport", 15.00)
+add_expense("Internet", 30.00)
+
+display_expenses()
+print(f"Total: ${calculate_total():.2f}")
+'''
+
+    result = PythonCodeValidator.validate(
+        code,
+        mission="Build a Function-Based Expense Tracker",
+    )
+
+    assert result["syntax_valid"] is True
+    assert result["criteria"]["expense_storage"] is True
+    assert result["criteria"]["add_expense_function"] is True
+    assert result["criteria"]["total_expense_function"] is True
+    assert result["criteria"]["multiple_expenses"] is True
+    assert result["criteria"]["expense_summary"] is True
+
+def test_expense_tracker_rejects_loop_total_that_returns_wrong_variable():
+    code = """
+expenses = []
+
+
+def add_expense(name, amount):
+    expenses.append((name, amount))
+
+
+def calculate_total():
+    total = 0
+
+    for name, amount in expenses:
+        total += amount
+
+    other_value = 999
+    return other_value
+
+
+print(calculate_total())
+"""
+
+    result = PythonCodeValidator.validate(
+        code,
+        mission="Build a Function-Based Expense Tracker",
+    )
+
+    assert result["syntax_valid"] is True
+    assert result["criteria"]["total_expense_function"] is False
+
+
+def test_expense_tracker_rejects_unrelated_accumulation_without_expense_loop():
+    code = """
+expenses = []
+
+
+def add_expense(name, amount):
+    expenses.append((name, amount))
+
+
+def calculate_total():
+    total = 0
+    value = 10
+
+    total += value
+
+    return total
+
+
+print(calculate_total())
+"""
+
+    result = PythonCodeValidator.validate(
+        code,
+        mission="Build a Function-Based Expense Tracker",
+    )
+
+    assert result["syntax_valid"] is True
+    assert result["criteria"]["total_expense_function"] is False

@@ -112,6 +112,56 @@ class PythonCodeValidator:
             for node in nodes
         )
 
+        has_loop_based_total = any(
+            isinstance(node, ast.FunctionDef)
+            and node.name == "calculate_total"
+            and any(
+                isinstance(child, ast.For)
+                and isinstance(child.iter, ast.Name)
+                and child.iter.id == "expenses"
+                and isinstance(child.target, ast.Tuple)
+                and any(
+                    isinstance(grandchild, ast.AugAssign)
+                    and isinstance(grandchild.op, ast.Add)
+                    and isinstance(grandchild.target, ast.Name)
+                    and isinstance(grandchild.value, ast.Name)
+                    and any(
+                        isinstance(element, ast.Name)
+                        and element.id == grandchild.value.id
+                        for element in child.target.elts
+                    )
+                    for grandchild in ast.walk(child)
+                )
+                for child in ast.walk(node)
+            )
+            and any(
+                isinstance(return_node, ast.Return)
+                and isinstance(return_node.value, ast.Name)
+                and any(
+                    isinstance(loop, ast.For)
+                    and isinstance(loop.iter, ast.Name)
+                    and loop.iter.id == "expenses"
+                    and any(
+                        isinstance(update, ast.AugAssign)
+                        and isinstance(update.target, ast.Name)
+                        and update.target.id == return_node.value.id
+                        and isinstance(update.op, ast.Add)
+                        and isinstance(update.value, ast.Name)
+                        and isinstance(loop.target, ast.Tuple)
+                        and any(
+                            isinstance(element, ast.Name)
+                            and element.id == update.value.id
+                            for element in loop.target.elts
+                        )
+                        for update in ast.walk(loop)
+                    )
+                    for loop in ast.walk(node)
+                )
+                for return_node in ast.walk(node)
+            )
+            for node in nodes
+        )
+
         has_loop = any(
             isinstance(node, (ast.For, ast.While))
             for node in nodes
@@ -132,7 +182,10 @@ class PythonCodeValidator:
             ),
             "total_expense_function": (
                 has_calculate_total_function
-                and has_sum_expenses
+                and (
+                    has_sum_expenses
+                    or has_loop_based_total
+                )
             ),
             "multiple_expenses": has_loop,
             "expense_summary": has_expense_print,
