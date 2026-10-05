@@ -268,8 +268,8 @@ def test_orchestrator_resolves_concept_for_canonical_mission():
     concept = orchestrator.session.concept
 
     assert concept is not None
-    assert concept["id"] == "python-loops"
-    assert concept["title"] == "Loops"
+    assert concept["id"] == "python-variables"
+    assert concept["title"] == "Variables"
 
 def test_orchestrator_gets_capability_profile():
 
@@ -325,3 +325,75 @@ def test_orchestrator_gets_capability_profile():
     import asyncio
 
     asyncio.run(run())
+
+def test_orchestrator_resolves_javascript_mission_by_id():
+    orchestrator = LearningOrchestrator(
+        learner_id="javascript-mission-test",
+        skill="python",
+        level="beginner",
+        mission_id="build-console-to-do-list",
+    )
+
+    assert orchestrator.session.skill == "javascript"
+    assert orchestrator.session.mission is not None
+    assert (
+        orchestrator.session.mission["id"]
+        == "build-console-to-do-list"
+    )
+    assert (
+        orchestrator.session.mission["title"]
+        == "Build a Console To-Do List"
+    )
+
+
+def test_orchestrator_resolves_aws_mission_by_id():
+    orchestrator = LearningOrchestrator(
+        learner_id="aws-mission-test",
+        skill="python",
+        level="beginner",
+        mission_id="build-serverless-hello-world-api",
+    )
+
+    assert orchestrator.session.skill == "aws-cloud"
+    assert orchestrator.session.mission is not None
+    assert (
+        orchestrator.session.mission["id"]
+        == "build-serverless-hello-world-api"
+    )
+    assert (
+        orchestrator.session.mission["title"]
+        == "Build a Serverless Hello World API"
+    )
+
+
+def test_orchestrator_resolves_python_mission_by_id():
+    orchestrator = LearningOrchestrator(
+        learner_id="python-mission-test",
+        skill="python",
+        level="beginner",
+        mission_id="build-number-guessing-game",
+    )
+
+    assert orchestrator.session.skill == "python"
+    assert orchestrator.session.mission is not None
+    assert (
+        orchestrator.session.mission["id"]
+        == "build-number-guessing-game"
+    )
+
+
+def test_orchestrator_rejects_unknown_mission_id():
+    try:
+        LearningOrchestrator(
+            learner_id="unknown-mission-test",
+            skill="python",
+            level="beginner",
+            mission_id="does-not-exist",
+        )
+    except ValueError as exc:
+        assert str(exc) == "Unknown mission ID: does-not-exist"
+    else:
+        raise AssertionError(
+            "Expected ValueError for unknown mission ID."
+        )
+

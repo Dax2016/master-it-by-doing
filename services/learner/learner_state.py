@@ -201,6 +201,7 @@ class LearnerState:
                     "missions": 0,
                     "attempts": 0,
                     "evidence_ids": [],
+                    "concept_ids": [],
                     "best_score": 0,
                     "demonstrated_criteria": [],
                 }
@@ -219,6 +220,13 @@ class LearnerState:
             ):
                 if evidence_id not in profile["evidence_ids"]:
                     profile["evidence_ids"].append(evidence_id)
+
+            for concept_id in capability.get(
+                "concept_ids",
+                [],
+            ):
+                if concept_id not in profile["concept_ids"]:
+                    profile["concept_ids"].append(concept_id)
 
             profile["best_score"] = max(
                 profile["best_score"],

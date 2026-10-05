@@ -8,6 +8,7 @@ from mcp.server.transport_security import TransportSecuritySettings
 from services.learner.learner_state import LearnerState
 from content.course_catalog import (
     get_concept_for_mission,
+    get_concepts_for_mission,
     get_concepts as get_catalog_concepts,
     get_missions,
 )
@@ -475,6 +476,17 @@ def evaluate_attempt(
             mission_id=mission_data.get("id", ""),
         )
 
+        concepts = get_concepts_for_mission(
+            skill=skill,
+            mission_id=mission_data.get("id", ""),
+        )
+
+        concept_ids = [
+            item.get("id")
+            for item in concepts
+            if item.get("id")
+        ]
+
         demonstrated_criteria = [
             criterion
             for criterion in final_evaluation.get(
@@ -496,6 +508,7 @@ def evaluate_attempt(
                 if concept
                 else None
             ),
+            "concept_ids": concept_ids,
             "status": "demonstrated",
             "score": final_evaluation.get("score", 0),
             "passed": True,

@@ -33,10 +33,17 @@ class BedrockEvaluator:
             DEFAULT_REGION,
         )
 
-        self.client = boto3.client(
-            "bedrock-runtime",
+        self.aws_profile = os.getenv(
+            "BEDROCK_AWS_PROFILE",
+            "darchums",
+        )
+
+        session = boto3.Session(
+            profile_name=self.aws_profile,
             region_name=self.region_name,
         )
+
+        self.client = session.client("bedrock-runtime")
 
     def evaluate(
         self,
@@ -296,3 +303,6 @@ Rules:
             "feedback": evaluation["feedback"],
             "next_action": evaluation["next_action"],
         }
+
+
+

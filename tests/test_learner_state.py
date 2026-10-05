@@ -158,6 +158,10 @@ def test_capability_profile_aggregates_across_missions():
             "mission_id": "mission-1",
             "mission": "Build a Command-Line Quiz",
             "concept_id": None,
+            "concept_ids": [
+                "python-variables",
+                "python-loops",
+            ],
             "status": "demonstrated",
             "score": 80,
             "passed": True,
@@ -177,6 +181,11 @@ def test_capability_profile_aggregates_across_missions():
             "mission_id": "mission-2",
             "mission": "Build an Expense Tracker",
             "concept_id": None,
+            "concept_ids": [
+                "python-variables",
+                "python-functions",
+                "python-lists",
+            ],
             "status": "demonstrated",
             "score": 100,
             "passed": True,
@@ -200,6 +209,12 @@ def test_capability_profile_aggregates_across_missions():
     assert python_profile["evidence_ids"] == [
         "evidence-1",
         "evidence-2",
+    ]
+    assert python_profile["concept_ids"] == [
+        "python-variables",
+        "python-loops",
+        "python-functions",
+        "python-lists",
     ]
     assert python_profile["best_score"] == 100
     assert python_profile["demonstrated_criteria"] == [

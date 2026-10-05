@@ -161,6 +161,13 @@ while True:
         assert capability_profile["missions"] == 1
         assert capability_profile["attempts"] == 1
         assert capability_profile["best_score"] == 100
+        assert capability_profile["concept_ids"] == [
+            "python-variables",
+            "python-input-output",
+            "python-conditionals",
+            "python-loops",
+            "python-functions",
+        ]
 
         # -----------------------------------------------------
         # 6. Mastery must trigger progression

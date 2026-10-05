@@ -3,6 +3,7 @@ from content.course_catalog import (
     get_concept_for_mission,
     get_concepts,
     get_course,
+    get_mission_by_id,
     get_missions,
 )
 
@@ -60,15 +61,31 @@ def test_python_has_concepts():
 
     assert course is not None
     assert "concepts" in course
-    assert len(course["concepts"]) > 0
+    assert len(course["concepts"]) == 6
 
-    concept = course["concepts"][0]
+    concept_ids = [concept["id"] for concept in course["concepts"]]
+
+    assert concept_ids == [
+        "python-variables",
+        "python-input-output",
+        "python-conditionals",
+        "python-loops",
+        "python-functions",
+        "python-lists",
+    ]
+
+    concept = next(
+        concept
+        for concept in course["concepts"]
+        if concept["id"] == "python-loops"
+    )
 
     assert concept["id"] == "python-loops"
     assert concept["title"] == "Loops"
     assert "description" in concept
     assert "prerequisites" in concept
     assert "misconceptions" in concept
+
 
 def test_python_missions_have_stable_ids():
     missions = get_missions("python")
@@ -94,19 +111,30 @@ def test_concept_references_existing_mission():
 def test_get_concepts_returns_python_concepts():
     concepts = get_concepts("python")
 
-    assert len(concepts) == 1
-    assert concepts[0]["id"] == "python-loops"
-    assert concepts[0]["title"] == "Loops"
+    assert len(concepts) == 6
+    assert [concept["id"] for concept in concepts] == [
+        "python-variables",
+        "python-input-output",
+        "python-conditionals",
+        "python-loops",
+        "python-functions",
+        "python-lists",
+    ]
 
 def test_python_loop_concept_has_learning_content():
     concepts = get_concepts("python")
 
-    concept = concepts[0]
+    concept = next(
+        concept
+        for concept in concepts
+        if concept["id"] == "python-loops"
+    )
 
     assert "examples" in concept
     assert "practice" in concept
     assert len(concept["examples"]) > 0
     assert len(concept["practice"]) > 0
+
 def test_python_concepts_have_required_structure():
     concepts = get_concepts("python")
 
@@ -150,9 +178,8 @@ def test_get_concept_for_mission():
     )
 
     assert concept is not None
-    assert concept["id"] == "python-loops"
-    assert concept["title"] == "Loops"
-
+    assert concept["id"] == "python-variables"
+    assert concept["title"] == "Variables"
 
 def test_get_concept_for_unknown_mission_returns_none():
     concept = get_concept_for_mission(
@@ -161,3 +188,84 @@ def test_get_concept_for_unknown_mission_returns_none():
     )
 
     assert concept is None
+
+def test_get_mission_by_id_resolves_python_mission():
+    result = get_mission_by_id(
+        "build-number-guessing-game",
+    )
+
+    assert result is not None
+
+    skill, mission = result
+
+    assert skill == "python"
+    assert mission["id"] == "build-number-guessing-game"
+    assert mission["title"] == "Build a Number Guessing Game"
+
+
+def test_get_mission_by_id_resolves_javascript_mission():
+    result = get_mission_by_id(
+        "build-console-to-do-list",
+    )
+
+    assert result is not None
+
+    skill, mission = result
+
+    assert skill == "javascript"
+    assert mission["id"] == "build-console-to-do-list"
+    assert mission["title"] == "Build a Console To-Do List"
+
+
+def test_get_mission_by_id_resolves_aws_mission():
+    result = get_mission_by_id(
+        "build-serverless-hello-world-api",
+    )
+
+    assert result is not None
+
+    skill, mission = result
+
+    assert skill == "aws-cloud"
+    assert mission["id"] == "build-serverless-hello-world-api"
+    assert mission["title"] == "Build a Serverless Hello World API"
+
+
+def test_get_mission_by_id_is_case_insensitive():
+    result = get_mission_by_id(
+        "BUILD-CONSOLE-TO-DO-LIST",
+    )
+
+    assert result is not None
+
+    skill, mission = result
+
+    assert skill == "javascript"
+    assert mission["id"] == "build-console-to-do-list"
+
+
+def test_get_mission_by_id_returns_none_for_unknown_mission():
+    assert get_mission_by_id("unknown-mission") is None
+
+def test_javascript_console_todo_mission_has_evaluation_criteria():
+    result = get_mission_by_id(
+        "build-console-to-do-list",
+    )
+
+    assert result is not None
+
+    skill, mission = result
+
+    assert skill == "javascript"
+
+    criteria = mission["criteria"]
+
+    assert len(criteria) == 5
+    assert [criterion["id"] for criterion in criteria] == [
+        "add_task",
+        "view_tasks",
+        "remove_task",
+        "functions",
+        "task_collection",
+    ]
+

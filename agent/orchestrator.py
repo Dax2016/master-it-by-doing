@@ -26,6 +26,7 @@ from typing import Any, Dict, List, Optional
 from agent.mcp_client import MCPLearningClient
 from content.course_catalog import (
     get_concept_for_mission,
+    get_mission_by_id,
     get_missions,
 )
 
@@ -87,48 +88,47 @@ class LearningOrchestrator:
         cycle begins.
         """
 
+        resolved_skill = skill
+        resolved_mission = None
+
+        if mission_id and mission_id.strip():
+            mission_lookup = get_mission_by_id(mission_id)
+
+            if mission_lookup is None:
+                raise ValueError(
+                    f"Unknown mission ID: {mission_id.strip()}"
+                )
+
+            resolved_skill, catalog_mission = mission_lookup
+            resolved_mission = {
+                **catalog_mission,
+                "mission": catalog_mission["title"],
+                "skill": resolved_skill,
+            }
+
+        elif mission and mission.strip():
+            resolved_mission = next(
+                (
+                    {
+                        **catalog_mission,
+                        "mission": catalog_mission["title"],
+                        "skill": skill,
+                    }
+                    for catalog_mission in get_missions(skill)
+                    if catalog_mission.get("title", "").strip().lower()
+                    == mission.strip().lower()
+                ),
+                {
+                    "mission": mission.strip(),
+                    "skill": skill,
+                },
+            )
+
         self.session = LearnerSession(
             learner_id=learner_id,
-            skill=skill,
+            skill=resolved_skill,
             level=level,
-            mission=(
-                next(
-                    (
-                        {
-                            **catalog_mission,
-                            "mission": catalog_mission["title"],
-                            "skill": skill,
-                        }
-                        for catalog_mission in get_missions(skill)
-                        if (
-                            mission_id
-                            and catalog_mission.get("id") == mission_id.strip()
-                        )
-                    ),
-                    None,
-                )
-                if mission_id and mission_id.strip()
-                else (
-                    next(
-                        (
-                            {
-                                **catalog_mission,
-                                "mission": catalog_mission["title"],
-                                "skill": skill,
-                            }
-                            for catalog_mission in get_missions(skill)
-                            if catalog_mission.get("title", "").strip().lower()
-                            == mission.strip().lower()
-                        ),
-                        {
-                            "mission": mission.strip(),
-                            "skill": skill,
-                        },
-                    )
-                    if mission and mission.strip()
-                    else None
-                )
-            ),
+            mission=resolved_mission,
         )
 
         self.mcp = mcp_client or MCPLearningClient()

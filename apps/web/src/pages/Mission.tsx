@@ -24,12 +24,9 @@ type MissionDetails = {
   skills?: string[]
 }
 
-type MissionResponse = {
-  status: string
+type MissionResponse = MissionDetails & {
+  mission: string
   skill: string
-  learner_level: string
-  mission: MissionDetails
-  next_action: string
 }
 
 type TargetedExercise = {
@@ -238,12 +235,21 @@ export default function Mission() {
 
       const data =
         (await response.json()) as AttemptResponse
-      console.log('Submission response status:', response.status)
-      console.log('Submission response content-type:', response.headers.get('content-type'))
+
       console.log(
-      'Submission response body:',
-      JSON.stringify(data, null, 2),
-)
+        'Submission response status:',
+        response.status,
+      )
+
+      console.log(
+        'Submission response content-type:',
+        response.headers.get('content-type'),
+      )
+
+      console.log(
+        'Submission response body:',
+        JSON.stringify(data, null, 2),
+      )
 
       if (!response.ok) {
         const detail = data.detail
@@ -291,7 +297,7 @@ export default function Mission() {
   }
 
   const mission =
-    learningState?.mission?.mission ?? null
+    learningState?.mission ?? null
 
   const missionSkills =
     mission?.skills ?? []
@@ -316,14 +322,15 @@ export default function Mission() {
 
   const nextMission =
     adaptedMission?.next_mission ?? null
+
   const isMastered =
-  evaluation?.passed === true &&
-  (
-    adaptedMission?.next_action ===
-      'create_advanced_mission' ||
-    adaptedMission?.next_action ===
-      'learning_path_complete'
-  )
+    evaluation?.passed === true &&
+    (
+      adaptedMission?.next_action ===
+        'create_advanced_mission' ||
+      adaptedMission?.next_action ===
+        'learning_path_complete'
+    )
 
   const learningLoopStatus =
     isMastered
@@ -382,65 +389,67 @@ export default function Mission() {
       )}
 
       {!isLoadingMission && mission && (
-  <>
-    <section
-      className="learning-loop"
-      aria-label="Learning progress"
-    >
-      <div className="learning-loop-heading">
-        <span className="eyebrow">
-          YOUR LEARNING LOOP
-        </span>
+        <>
+          <section
+            className="learning-loop"
+            aria-label="Learning progress"
+          >
+            <div className="learning-loop-heading">
+              <span className="eyebrow">
+                YOUR LEARNING LOOP
+              </span>
 
-        <span>{learningLoopStatus}</span>
-      </div>
+              <span>
+                {learningLoopStatus}
+              </span>
+            </div>
 
-      <div className="learning-loop-steps">
-        <div className="learning-step active">
-          <span>01</span>
-          <strong>MISSION</strong>
-        </div>
+            <div className="learning-loop-steps">
+              <div className="learning-step active">
+                <span>01</span>
+                <strong>MISSION</strong>
+              </div>
 
-        <div className="learning-step active">
-          <span>02</span>
-          <strong>BUILD</strong>
-        </div>
+              <div className="learning-step active">
+                <span>02</span>
+                <strong>BUILD</strong>
+              </div>
 
-        <div
-          className={`learning-step ${
-            evaluation ? 'active' : ''
-          }`}
-        >
-          <span>03</span>
-          <strong>EVALUATE</strong>
-        </div>
+              <div
+                className={`learning-step ${
+                  evaluation ? 'active' : ''
+                }`}
+              >
+                <span>03</span>
+                <strong>EVALUATE</strong>
+              </div>
 
-        <div
-          className={`learning-step ${
-            adaptedExercise || isMastered
-              ? 'active'
-              : ''
-          }`}
-        >
-          <span>04</span>
-          <strong>ADAPT</strong>
-        </div>
+              <div
+                className={`learning-step ${
+                  adaptedExercise || isMastered
+                    ? 'active'
+                    : ''
+                }`}
+              >
+                <span>04</span>
+                <strong>ADAPT</strong>
+              </div>
 
-        <div
-          className={`learning-step ${
-            isMastered ? 'active' : ''
-          }`}
-        >
-          <span>05</span>
-          <strong>MASTER</strong>
-        </div>
-      </div>
-    </section>
+              <div
+                className={`learning-step ${
+                  isMastered ? 'active' : ''
+                }`}
+              >
+                <span>05</span>
+                <strong>MASTER</strong>
+              </div>
+            </div>
+          </section>
 
-    <section className="mission-header">
-      <span className="eyebrow">
-        PRACTICAL MISSION
-      </span>
+          <section className="mission-header">
+            <span className="eyebrow">
+              PRACTICAL MISSION
+            </span>
 
             <h1>{mission.title}</h1>
 
@@ -599,8 +608,7 @@ export default function Mission() {
                     </div>
                   </div>
 
-                  {evaluationCriteria.length >
-                    0 && (
+                  {evaluationCriteria.length > 0 && (
                     <div className="criteria-list">
                       <h3>
                         What you proved
@@ -639,8 +647,7 @@ export default function Mission() {
                     </div>
                   )}
 
-                  {evaluationStrengths.length >
-                    0 && (
+                  {evaluationStrengths.length > 0 && (
                     <div className="evaluation-section">
                       <h3>
                         Strengths
@@ -661,8 +668,7 @@ export default function Mission() {
                     </div>
                   )}
 
-                  {evaluationWeaknesses.length >
-                    0 && (
+                  {evaluationWeaknesses.length > 0 && (
                     <div className="evaluation-section">
                       <h3>
                         Areas to improve
@@ -719,8 +725,7 @@ export default function Mission() {
                         {nextMission.description}
                       </p>
 
-                      {nextMission.skills.length >
-                        0 && (
+                      {nextMission.skills.length > 0 && (
                         <>
                           <h3>
                             Skills to practice
@@ -764,8 +769,7 @@ export default function Mission() {
                     </section>
                   )}
 
-                  {learnerWeaknesses.length >
-                    0 && (
+                  {learnerWeaknesses.length > 0 && (
                     <div className="evaluation-section">
                       <h3>
                         Targeted practice
@@ -806,8 +810,7 @@ export default function Mission() {
                         {adaptedExercise.objective}
                       </p>
 
-                      {adaptedExercise.instructions
-                        ?.length > 0 && (
+                      {adaptedExercise.instructions?.length > 0 && (
                         <>
                           <h3>
                             What to do

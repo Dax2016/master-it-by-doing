@@ -9,6 +9,83 @@ COURSE_CATALOG = {
         ),
         "concepts": [
             {
+                "id": "python-variables",
+                "title": "Variables",
+                "description": (
+                    "Store and update values that a program needs "
+                    "to process information."
+                ),
+                "prerequisites": [],
+                "misconceptions": [
+                    "A variable can only store one type of value.",
+                    "Variables cannot be updated after assignment.",
+                ],
+                "examples": [
+                    "Store a user's name in a variable.",
+                    "Update a running score stored in a variable.",
+                ],
+                "practice": [
+                    "Create variables for a user's name and score.",
+                    "Update a variable after processing input.",
+                ],
+                "mission_ids": [
+                    "build-number-guessing-game",
+                    "build-command-line-quiz",
+                    "build-expense-tracker",
+                ],
+            },
+            {
+                "id": "python-input-output",
+                "title": "Input and Output",
+                "description": (
+                    "Receive information from users and present "
+                    "useful results through program output."
+                ),
+                "prerequisites": [],
+                "misconceptions": [
+                    "Input is automatically converted to numbers.",
+                    "Output can only display text.",
+                ],
+                "examples": [
+                    "Use input to collect a user's response.",
+                    "Use print to display a calculated result.",
+                ],
+                "practice": [
+                    "Ask a user for a value and display it.",
+                    "Display a formatted result after processing input.",
+                ],
+                "mission_ids": [
+                    "build-number-guessing-game",
+                    "build-command-line-quiz",
+                    "build-expense-tracker",
+                ],
+            },
+            {
+                "id": "python-conditionals",
+                "title": "Conditionals",
+                "description": (
+                    "Use conditions to make decisions and control "
+                    "which actions a program performs."
+                ),
+                "prerequisites": [],
+                "misconceptions": [
+                    "An if statement always needs an else branch.",
+                    "Conditions can only compare numbers.",
+                ],
+                "examples": [
+                    "Check whether a user's answer is correct.",
+                    "Choose different feedback based on a condition.",
+                ],
+                "practice": [
+                    "Write a condition that compares two values.",
+                    "Display different messages for different outcomes.",
+                ],
+                "mission_ids": [
+                    "build-number-guessing-game",
+                    "build-command-line-quiz",
+                ],
+            },
+            {
                 "id": "python-loops",
                 "title": "Loops",
                 "description": (
@@ -30,6 +107,59 @@ COURSE_CATALOG = {
                 ],
                 "mission_ids": [
                     "build-number-guessing-game",
+                    "build-command-line-quiz",
+                    "build-expense-tracker",
+                ],
+            },
+            {
+                "id": "python-functions",
+                "title": "Functions",
+                "description": (
+                    "Organize reusable program logic into functions "
+                    "that can accept inputs and return results."
+                ),
+                "prerequisites": [],
+                "misconceptions": [
+                    "Every function must accept an argument.",
+                    "A function cannot return a calculated value.",
+                ],
+                "examples": [
+                    "Create a function that calculates a total.",
+                    "Use a function to perform a reusable task.",
+                ],
+                "practice": [
+                    "Write a function that accepts an argument.",
+                    "Write a function that returns a calculated result.",
+                ],
+                "mission_ids": [
+                    "build-number-guessing-game",
+                    "build-command-line-quiz",
+                    "build-expense-tracker",
+                ],
+            },
+            {
+                "id": "python-lists",
+                "title": "Lists",
+                "description": (
+                    "Store and process collections of related values "
+                    "using Python lists."
+                ),
+                "prerequisites": [],
+                "misconceptions": [
+                    "A list can contain only numbers.",
+                    "List elements cannot be changed.",
+                ],
+                "examples": [
+                    "Store multiple quiz questions in a list.",
+                    "Store multiple expenses in a list.",
+                ],
+                "practice": [
+                    "Create a list and add several values.",
+                    "Loop through a list and process each item.",
+                ],
+                "mission_ids": [
+                    "build-command-line-quiz",
+                    "build-expense-tracker",
                 ],
             },
         ],
@@ -220,6 +350,28 @@ COURSE_CATALOG = {
                     "Conditionals",
                     "Loops",
                 ],
+                "criteria": [
+                    {
+                        "id": "add_task",
+                        "name": "Allow the user to add a task",
+                    },
+                    {
+                        "id": "view_tasks",
+                        "name": "Display the current tasks",
+                    },
+                    {
+                        "id": "remove_task",
+                        "name": "Allow the user to remove a task",
+                    },
+                    {
+                        "id": "functions",
+                        "name": "Use functions to organize task operations",
+                    },
+                    {
+                        "id": "task_collection",
+                        "name": "Store and update tasks in an array",
+                    },
+                ],
             },
         ],
     },
@@ -247,6 +399,21 @@ def get_missions(skill: str) -> list[dict]:
     return course["missions"]
 
 
+def get_mission_by_id(mission_id: str) -> tuple[str, dict] | None:
+    """Return the course skill and mission definition for a mission ID."""
+    normalized_id = mission_id.strip().lower()
+
+    if not normalized_id:
+        return None
+
+    for skill, course in COURSE_CATALOG.items():
+        for mission in course.get("missions", []):
+            if mission.get("id", "").strip().lower() == normalized_id:
+                return skill, mission
+
+    return None
+
+
 def get_concepts(skill: str) -> list[dict]:
     """Return the concepts for a skill."""
     course = get_course(skill)
@@ -255,6 +422,21 @@ def get_concepts(skill: str) -> list[dict]:
         return []
 
     return course.get("concepts", [])
+
+
+def get_concepts_for_mission(
+    skill: str,
+    mission_id: str,
+) -> list[dict]:
+    """Return all concepts associated with a mission ID."""
+
+    concepts = get_concepts(skill)
+
+    return [
+        concept
+        for concept in concepts
+        if mission_id in concept.get("mission_ids", [])
+    ]
 
 
 def get_concept_for_mission(
