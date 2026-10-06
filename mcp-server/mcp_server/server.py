@@ -109,12 +109,38 @@ def create_learning_goal(
     learner_level: str = "beginner",
     learner_id: str = "demo-learner",
 ) -> dict:
-
     """
     Create and record a practical learning goal for the learner.
+
+    Repeated requests for the same learner, skill, and level are
+    idempotent and do not create duplicate goals.
     """
 
     learner = get_learner(learner_id)
+
+    existing_goal = next(
+        (
+            goal
+            for goal in learner.goals
+            if goal.get("skill") == skill
+            and goal.get("learner_level") == learner_level
+        ),
+        None,
+    )
+
+    if existing_goal is not None:
+        return {
+            "status": "exists",
+            "learner_id": learner.learner_id,
+            "skill": skill,
+            "learner_level": learner_level,
+            "goal": existing_goal,
+            "message": (
+                f"Learning goal already exists: learn {skill} "
+                f"at {learner_level} level."
+            ),
+            "next_action": "Continue with the learner's active mission.",
+        }
 
     goal = {
         "skill": skill,
@@ -128,6 +154,7 @@ def create_learning_goal(
         "learner_id": learner.learner_id,
         "skill": skill,
         "learner_level": learner_level,
+        "goal": goal,
         "message": (
             f"Learning goal created: learn {skill} "
             f"at {learner_level} level."
@@ -167,9 +194,40 @@ def create_mission(
     learner_id: str = "demo-learner",
 ) -> dict:
     """
-    Create a practical hands-on learning mission.
+    Create or resume a practical hands-on learning mission.
+
+    If the learner already has an active mission for the requested skill,
+    return that mission instead of creating or replacing it.
     """
+
     learner = get_learner(learner_id)
+
+    # -----------------------------------------------------------------------
+    # Resume an existing active mission.
+    # -----------------------------------------------------------------------
+
+    active_mission = learner.active_mission
+
+    if (
+        active_mission is not None
+        and active_mission.get("status") == "in_progress"
+        and active_mission.get("skill") == skill
+        and concept_id is None
+    ):
+        return {
+            "status": "resumed",
+            "learner_id": learner.learner_id,
+            "skill": skill,
+            "learner_level": learner_level,
+            "mission": active_mission,
+            "next_action": (
+                "Continue the active mission."
+            ),
+        }
+
+    # -----------------------------------------------------------------------
+    # Select a new mission.
+    # -----------------------------------------------------------------------
 
     missions = get_missions(
         skill,
@@ -209,7 +267,6 @@ def create_mission(
             None,
         )
 
-
     if mission is None:
         mission = {
             "title": f"Build a Practical {skill.title()} Project",
@@ -223,8 +280,12 @@ def create_mission(
                 "Practical implementation",
             ],
         }
+
+    learner.set_active_mission(mission, skill)
+
     return {
         "status": "created",
+        "learner_id": learner.learner_id,
         "skill": skill,
         "learner_level": learner_level,
         "mission": mission,
@@ -959,17 +1020,70 @@ def adapt_learning_mission(
     # -----------------------------------------------------------------------
 
     mastery_status = evaluation.get("mastery_status")
-    passed = evaluation.get("passed")
-    is_mastered = passed is True and mastery_status == "mastered"
+    is_mastered = (
+        passed is True
+        and mastery_status == "mastered"
+    )
 
     if is_mastered:
-        current_mission_id = ""
+        active_mission = learner.active_mission
 
-        if learner.attempts:
-            current_mission_id = learner.attempts[-1].get(
+        # Resolve the mission that was actually evaluated.
+        current_mission_id = evaluation.get(
+            "mission_id",
+            "",
+        )
+
+        current_mission_title = evaluation.get(
+            "mission",
+            "",
+        )
+
+        if active_mission:
+            active_mission_id = active_mission.get(
                 "mission_id",
                 "",
             )
+
+            if active_mission_id:
+                current_mission_id = active_mission_id
+
+            current_mission_title = active_mission.get(
+                "title",
+                current_mission_title,
+            )
+
+        # ---------------------------------------------------------------
+        # Record the completed mission exactly once.
+        # ---------------------------------------------------------------
+
+        already_completed = any(
+            completed.get("mission_id")
+            == current_mission_id
+            for completed in learner.completed_missions
+            if isinstance(completed, dict)
+        )
+
+        if not already_completed:
+            learner.add_completed_mission(
+                {
+                    "mission_id": current_mission_id,
+                    "title": current_mission_title,
+                    "skill": skill,
+                    "score": score,
+                    "status": "completed",
+                }
+            )
+
+        # ---------------------------------------------------------------
+        # Clear the active mission now that it has been mastered.
+        # ---------------------------------------------------------------
+
+        learner.clear_active_mission()
+
+        # ---------------------------------------------------------------
+        # Find the next mission.
+        # ---------------------------------------------------------------
 
         next_mission = get_next_mission(
             skill=skill,
@@ -992,6 +1106,8 @@ def adapt_learning_mission(
                 "capability_profile": capability_profile,
                 "next_action": "learning_path_complete",
                 "next_mission": None,
+                "active_mission": None,
+                "mission_completed": True,
                 "message": (
                     "The learner has mastered the available missions "
                     "for this learning path."
@@ -999,7 +1115,8 @@ def adapt_learning_mission(
             }
 
         # ---------------------------------------------------------------
-        # Advance to the next mission.
+        # The next mission is unlocked but not automatically activated.
+        # The learner can now enter it through the normal mission flow.
         # ---------------------------------------------------------------
 
         return {
@@ -1013,15 +1130,21 @@ def adapt_learning_mission(
             "capability_profile": capability_profile,
             "next_action": "create_advanced_mission",
             "next_mission": next_mission,
+            "active_mission": None,
+            "mission_completed": True,
             "message": (
                 "The learner demonstrated mastery. "
-                "The next mission increases the difficulty."
+                "The completed mission has been recorded and "
+                "the next mission is now available."
             ),
         }
 
     # -----------------------------------------------------------------------
     # Remediation path.
     # -----------------------------------------------------------------------
+
+    # The learner remains on the current mission until mastery is achieved.
+    active_mission = learner.active_mission
 
     targeted_exercise = generate_targeted_exercise(
         skill=skill,
@@ -1038,7 +1161,9 @@ def adapt_learning_mission(
         "strengths": strengths,
         "weaknesses": weaknesses,
         "capability_profile": capability_profile,
+        "active_mission": active_mission,
         "targeted_exercise": targeted_exercise,
+        "mission_completed": False,
         "next_action": (
             "Complete the targeted exercise, submit the attempt, "
             "and evaluate the new attempt."

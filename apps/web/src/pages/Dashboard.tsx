@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+﻿import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 
 interface MissionDetails {
@@ -8,12 +8,34 @@ interface MissionDetails {
   skills: string[]
 }
 
-interface MissionResponse {
+interface LearnerRecord {
+  learner_id: string
+  goals: Record<string, unknown>[]
+  completed_missions: Record<string, unknown>[]
+  attempts: Record<string, unknown>[]
+  evidence: Record<string, unknown>[]
+  capabilities: Record<string, unknown>[]
+  strengths: string[]
+  weaknesses: string[]
+  mastery: Record<string, Record<string, Record<string, unknown>>>
+}
+
+interface CapabilityProfile {
   status: string
+  learner_id: string
+  capabilities: Record<string, unknown>[]
+}
+
+interface LearningStateResponse {
+  status: string
+  learner_id: string
   skill: string
-  learner_level: string
-  mission: MissionDetails
-  next_action: string
+  level: string
+  state: {
+    status: string
+    learner: LearnerRecord
+  }
+  capabilities: CapabilityProfile
 }
 
 interface LearningState {
@@ -21,14 +43,14 @@ interface LearningState {
   skill: string
   level: string
   goal: Record<string, unknown> | null
-  mission: MissionResponse | null
-  latest_attempt: unknown
+  mission: MissionDetails | null
+  latest_attempt: Record<string, unknown> | null
   attempt_text: string | null
   attempt_type: string
-  evaluation: unknown
+  evaluation: Record<string, unknown> | null
   weaknesses: string[] | null
-  targeted_exercise: unknown
-  adapted_mission: unknown
+  targeted_exercise: Record<string, unknown> | null
+  adapted_mission: Record<string, unknown> | null
   next_action: string
 }
 
@@ -37,40 +59,24 @@ interface StartLearningResponse {
   result: LearningState
 }
 
+const API_BASE_URL = 'http://127.0.0.1:8080'
+
 export default function Dashboard() {
   const [learningState, setLearningState] =
     useState<LearningState | null>(null)
 
   const [loading, setLoading] = useState(true)
+  const [starting, setStarting] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
-  const startedRef = useRef(false)
-
   useEffect(() => {
-    if (startedRef.current) {
-      return
-    }
-
-    startedRef.current = true
-
-    async function startLearningJourney() {
+    async function loadLearningState() {
       try {
         setLoading(true)
         setError(null)
 
         const response = await fetch(
-          'http://127.0.0.1:8080/api/learning/start',
-          {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({
-              learner_id: 'demo-learner',
-              skill: 'python',
-              level: 'beginner',
-            }),
-          },
+          `${API_BASE_URL}/api/learning/state?learner_id=demo-learner&skill=python&level=beginner`,
         )
 
         if (!response.ok) {
@@ -79,18 +85,47 @@ export default function Dashboard() {
           )
         }
 
-        const data: StartLearningResponse = await response.json()
+        const data: LearningStateResponse =
+          await response.json()
 
-        if (!data.result) {
+        const learner = data.state?.learner
+
+        if (!learner) {
           throw new Error(
-            'Learning service returned no learning state.',
+            'Learning service returned no learner state.',
           )
         }
 
-        setLearningState(data.result)
+        const goals = learner.goals ?? []
+        const attempts = learner.attempts ?? []
+        const weaknesses = learner.weaknesses ?? []
+
+        setLearningState({
+          learner_id: learner.learner_id,
+          skill: data.skill,
+          level: data.level,
+          goal: goals.length > 0
+            ? goals[goals.length - 1]
+            : null,
+          mission: null,
+          latest_attempt:
+            attempts.length > 0
+              ? attempts[attempts.length - 1]
+              : null,
+          attempt_text: null,
+          attempt_type: 'code',
+          evaluation: null,
+          weaknesses,
+          targeted_exercise: null,
+          adapted_mission: null,
+          next_action:
+            goals.length === 0
+              ? 'create_learning_goal'
+              : 'continue_learning',
+        })
       } catch (err) {
         console.error(
-          'Failed to start learning journey:',
+          'Failed to load learner state:',
           err,
         )
 
@@ -104,10 +139,64 @@ export default function Dashboard() {
       }
     }
 
-    startLearningJourney()
+    loadLearningState()
   }, [])
 
-  const mission = learningState?.mission?.mission
+  async function startLearningJourney() {
+    try {
+      setStarting(true)
+      setError(null)
+
+      const response = await fetch(
+        `${API_BASE_URL}/api/learning/start`,
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            learner_id: 'demo-learner',
+            skill: 'python',
+            level: 'beginner',
+          }),
+        },
+      )
+
+      if (!response.ok) {
+        throw new Error(
+          `Learning service returned HTTP ${response.status}`,
+        )
+      }
+
+      const data: StartLearningResponse =
+        await response.json()
+
+      if (!data.result) {
+        throw new Error(
+          'Learning service returned no learning state.',
+        )
+      }
+
+      setLearningState(data.result)
+    } catch (err) {
+      console.error(
+        'Failed to start learning journey:',
+        err,
+      )
+
+      setError(
+        err instanceof Error
+          ? err.message
+          : 'Unable to start your learning journey.',
+      )
+    } finally {
+      setStarting(false)
+    }
+  }
+
+  const hasGoal =
+    learningState?.goal !== null &&
+    learningState?.goal !== undefined
 
   return (
     <main className="dashboard">
@@ -145,7 +234,7 @@ export default function Dashboard() {
             </span>
 
             <p>
-              Creating your practical mission.
+              Checking your current mastery state.
             </p>
           </div>
         )}
@@ -166,79 +255,94 @@ export default function Dashboard() {
         )}
 
         {!loading && !error && learningState && (
-          <div className="dashboard-grid">
-            <div className="dashboard-card">
-              <span>Current goal</span>
+          <>
+            {!hasGoal ? (
+              <div className="dashboard-card">
+                <span>Ready to begin</span>
 
-              <h2>
-                {learningState.skill
-                  ? learningState.skill
-                      .charAt(0)
-                      .toUpperCase() +
-                    learningState.skill.slice(1)
-                  : 'Learning goal'}
-              </h2>
+                <h2>
+                  Start your practical learning journey
+                </h2>
 
-              <p>
-                {learningState.goal &&
-                typeof learningState.goal.message ===
-                  'string'
-                  ? learningState.goal.message
-                  : 'Build practical skills through hands-on challenges.'}
-              </p>
-            </div>
+                <p>
+                  Master It By Doing turns your learning
+                  goal into practical missions. You build,
+                  submit your work, prove what you know, and
+                  receive the next challenge based on your
+                  demonstrated ability.
+                </p>
 
-            <div className="dashboard-card">
-              <span>Learning status</span>
-
-              <strong className="big-score">
-                Mission ready
-              </strong>
-
-              <p>
-                Complete the practical mission to continue
-                your mastery journey.
-              </p>
-            </div>
-
-            <div className="dashboard-card mission-dashboard-card">
-              <span>Current mission</span>
-
-              <h2>
-                {mission?.title ??
-                  'No mission available'}
-              </h2>
-
-              <p>
-                {mission?.description ??
-                  'Your next practical challenge will appear here.'}
-              </p>
-
-              {mission?.skills &&
-                mission.skills.length > 0 && (
-                  <div>
-                    <span>Skills to practice</span>
-
-                    <ul>
-                      {mission.skills.map((skill) => (
-                        <li key={skill}>
-                          {skill}
-                        </li>
-                      ))}
-                    </ul>
-                  </div>
-                )}
-
-              {mission && (
-                <Link
-                  to={`/mission/${mission.id}`}
+                <button
+                  type="button"
                   className="primary-btn"
+                  onClick={startLearningJourney}
+                  disabled={starting}
                 >
-                  Continue mission →
-                </Link>
-              )}
-            </div>
-          </div>
+                  {starting
+                    ? 'Creating your mission...'
+                    : 'Start learning →'}
+                </button>
+              </div>
+            ) : (
+              <div className="dashboard-grid">
+                <div className="dashboard-card">
+                  <span>Current goal</span>
+
+                  <h2>
+                    {learningState.skill
+                      ? learningState.skill
+                          .charAt(0)
+                          .toUpperCase() +
+                        learningState.skill.slice(1)
+                      : 'Learning goal'}
+                  </h2>
+
+                  <p>
+                    {typeof learningState.goal?.message ===
+                    'string'
+                      ? learningState.goal.message
+                      : 'Build practical skills through hands-on challenges.'}
+                  </p>
+                </div>
+
+                <div className="dashboard-card">
+                  <span>Learning status</span>
+
+                  <strong className="big-score">
+                    {learningState.next_action ===
+                    'submit_attempt'
+                      ? 'Mission ready'
+                      : 'Learning in progress'}
+                  </strong>
+
+                  <p>
+                    Continue building practical evidence
+                    toward mastery.
+                  </p>
+                </div>
+
+                <div className="dashboard-card mission-dashboard-card">
+                  <span>Current mission</span>
+
+                  <h2>
+                    Your practical challenge
+                  </h2>
+
+                  <p>
+                    Your active mission is available from
+                    your learning journey.
+                  </p>
+
+                  <Link
+                    to="/mission/build-number-guessing-game"
+                    className="primary-btn"
+                  >
+                    Continue mission →
+                  </Link>
+                </div>
+              </div>
+            )}
+          </>
         )}
       </section>
     </main>

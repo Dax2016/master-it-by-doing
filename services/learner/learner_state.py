@@ -12,6 +12,7 @@ class LearnerState:
     """
 
     learner_id: str
+    active_mission: dict[str, Any] | None = None
 
     goals: list[dict] = field(default_factory=list)
     completed_missions: list[dict] = field(default_factory=list)
@@ -169,10 +170,23 @@ class LearnerState:
             "evidence": evidence or {},
         }
 
+    def set_active_mission(self, mission: dict[str, Any], skill: str | None = None) -> None:
+        self.active_mission = {
+            "mission_id": mission.get("id") or mission.get("mission_id"),
+            "title": mission.get("title"),
+            "description": mission.get("description"),
+            "skill": mission.get("skill") or skill,
+            "status": "in_progress",
+        }
+
+    def clear_active_mission(self) -> None:
+        self.active_mission = None
+
     def to_dict(self) -> dict:
         """Return the learner state as a serializable dictionary."""
         return {
             "learner_id": self.learner_id,
+            "active_mission": self.active_mission,
             "goals": self.goals,
             "completed_missions": self.completed_missions,
             "attempts": self.attempts,

@@ -170,8 +170,111 @@ while True:
         ]
 
         # -----------------------------------------------------
-        # 6. Mastery must trigger progression
+        # 6. Mastery must complete the active mission
         # -----------------------------------------------------
+
+        assert adapted_mission["mission_completed"] is True
+        assert adapted_mission["active_mission"] is None
+
+        # The completed mission must be persisted exactly once.
+        state_result = await orchestrator.get_learner_state()
+
+        assert state_result is not None
+
+        learner_state = state_result["learner"]
+
+        assert "completed_missions" in learner_state
+
+        completed_missions = learner_state["completed_missions"]
+
+        matching_completed = [
+            mission
+            for mission in completed_missions
+            if (
+                mission.get("mission_id")
+                == mission_1["mission"]["id"]
+            )
+        ]
+
+        assert len(matching_completed) == 1
+
+        completed_mission = matching_completed[0]
+
+        assert completed_mission["title"] == (
+            mission_1["mission"]["title"]
+        )
+        assert completed_mission["skill"] == "Python"
+        assert completed_mission["score"] == 100
+        assert completed_mission["status"] == "completed"
+
+        # There must no longer be an active mission.
+        assert learner_state["active_mission"] is None
+
+        # -----------------------------------------------------
+        # 7. Mastery must trigger progression
+        # -----------------------------------------------------
+
+        assert (
+            adapted_mission["next_action"]
+            == "create_advanced_mission"
+        )
+
+        assert adapted_mission["next_mission"] is not None
+
+        next_mission = adapted_mission["next_mission"]
+
+        assert next_mission["title"] != mission_1["mission"]["title"]
+
+        # The next mission must still be a Python mission.
+        assert next_mission["skill"] == "Python"
+
+        # The next mission is available, but should not yet
+        # be active until the learner explicitly starts it.
+        assert adapted_mission["active_mission"] is None
+
+        # -----------------------------------------------------
+        # 8. Starting again must activate the next mission
+        # -----------------------------------------------------
+
+        next_mission_result = await orchestrator.create_mission()
+
+        assert next_mission_result is not None
+        assert orchestrator.session.mission is not None
+
+        mission_2 = orchestrator.session.mission
+
+        assert mission_2["status"] == "created"
+        assert mission_2["mission"]["id"] == next_mission["id"]
+        assert mission_2["mission"]["title"] == next_mission["title"]
+
+        # Verify the learner now has the new mission as active.
+        state_result = await orchestrator.get_learner_state()
+
+        assert state_result is not None
+
+        learner_state = state_result["learner"]
+
+        assert learner_state["active_mission"] is not None
+
+        active_mission = learner_state["active_mission"]
+
+        assert active_mission["mission_id"] == next_mission["id"]
+        assert active_mission["title"] == next_mission["title"]
+        assert active_mission["skill"] == "Python"
+        assert active_mission["status"] == "in_progress"
+
+        # -----------------------------------------------------
+        # Final diagnostic output
+        # -----------------------------------------------------
+
+        print("\n========================================")
+        print("MISSION LIFECYCLE TEST")
+        print("========================================")
+        print(f"Mission 1:       {mission_1}")
+        print(f"Evaluation:      {evaluation}")
+        print(f"Completed:       {completed_mission}")
+        print(f"Next Mission:    {next_mission}")
+        print(f"Active Mission:  {active_mission}")
 
         assert (
             adapted_mission["next_action"]

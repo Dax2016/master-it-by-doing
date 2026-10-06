@@ -1,4 +1,4 @@
-"""
+﻿"""
 Master It By Doing
 Web API
 
@@ -14,11 +14,12 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 
 from agent.orchestrator import LearningOrchestrator
+from content.course_catalog import get_mission_by_id
 
 
 app = FastAPI(
     title="Master It By Doing API",
-    version="1.0.0",
+    version="1.1.0",
 )
 
 
@@ -30,6 +31,7 @@ app.add_middleware(
     CORSMiddleware,
     allow_origins=[
         "http://localhost:5173",
+        "http://127.0.0.1:5173",
     ],
     allow_credentials=True,
     allow_methods=["*"],
@@ -44,10 +46,6 @@ app.add_middleware(
 class StartLearningRequest(BaseModel):
     """
     Request body for starting a learner's journey.
-
-    The learner provides the skill and current level.
-    The learning orchestrator then creates the goal and
-    practical mission through the MCP learning engine.
     """
 
     learner_id: str = Field(
@@ -72,9 +70,6 @@ class StartLearningRequest(BaseModel):
 class AttemptRequest(BaseModel):
     """
     Request body for submitting a learner attempt.
-
-    The mission is supplied by the frontend so the evaluation
-    is performed against the actual mission the learner is viewing.
     """
 
     learner_id: str = Field(
@@ -93,8 +88,8 @@ class AttemptRequest(BaseModel):
     )
 
     mission: str = Field(
-    min_length=1,
-)
+        min_length=1,
+    )
 
     attempt: str = Field(
         min_length=1,
@@ -120,6 +115,205 @@ async def health() -> dict:
     return {
         "status": "ok",
         "service": "master-it-by-doing-api",
+        "version": app.version,
+    }
+
+
+# ---------------------------------------------------------------------------
+# LEARNER STATE
+# ---------------------------------------------------------------------------
+
+@app.get("/api/learning/state")
+async def get_learning_state(
+    learner_id: str = "demo-learner",
+    skill: str = "python",
+    level: str = "beginner",
+) -> dict:
+    """
+    Return the learner's current persistent learning-engine state.
+
+    This endpoint intentionally does not start a new learning cycle.
+
+    The React application can therefore safely load the dashboard
+    without creating a new goal or mission on every page visit.
+
+    Flow:
+
+        React
+          ↓
+        FastAPI
+          ↓
+        LearningOrchestrator
+          ↓
+        MCP
+          ↓
+        LearnerState
+    """
+
+    orchestrator = LearningOrchestrator(
+        learner_id=learner_id,
+        skill=skill,
+        level=level,
+    )
+
+    try:
+        state = await orchestrator.get_learner_state()
+        capabilities = await orchestrator.get_capability_profile()
+
+    except ValueError as exc:
+        raise HTTPException(
+            status_code=400,
+            detail={
+                "message": str(exc),
+                "error_type": type(exc).__name__,
+            },
+        ) from exc
+
+    except Exception as exc:
+        traceback.print_exc()
+
+        raise HTTPException(
+            status_code=500,
+            detail={
+                "message": "Learner state could not be retrieved.",
+                "error_type": type(exc).__name__,
+                "error": str(exc),
+            },
+        ) from exc
+
+    return {
+        "status": "ok",
+        "learner_id": learner_id,
+        "skill": skill,
+        "level": level,
+        "state": state,
+        "capabilities": capabilities,
+    }
+
+
+# ---------------------------------------------------------------------------
+# LEARNER CAPABILITIES
+# ---------------------------------------------------------------------------
+
+@app.get("/api/learning/capabilities")
+async def get_learning_capabilities(
+    learner_id: str = "demo-learner",
+    skill: str = "python",
+    level: str = "beginner",
+) -> dict:
+    """
+    Return the learner's demonstrated capability profile.
+
+    Capabilities are evidence-based. They are derived from
+    evaluated learner work rather than self-reported progress.
+    """
+
+    orchestrator = LearningOrchestrator(
+        learner_id=learner_id,
+        skill=skill,
+        level=level,
+    )
+
+    try:
+        capabilities = await orchestrator.get_capability_profile()
+
+    except ValueError as exc:
+        raise HTTPException(
+            status_code=400,
+            detail={
+                "message": str(exc),
+                "error_type": type(exc).__name__,
+            },
+        ) from exc
+
+    except Exception as exc:
+        traceback.print_exc()
+
+        raise HTTPException(
+            status_code=500,
+            detail={
+                "message": "Capability profile could not be retrieved.",
+                "error_type": type(exc).__name__,
+                "error": str(exc),
+            },
+        ) from exc
+
+    return {
+        "status": "ok",
+        "learner_id": learner_id,
+        "skill": skill,
+        "level": level,
+        "capabilities": capabilities,
+    }
+
+
+# ---------------------------------------------------------------------------
+# MISSION LOOKUP
+# ---------------------------------------------------------------------------
+
+@app.get("/api/missions/{mission_id}")
+async def get_mission(
+    mission_id: str,
+) -> dict:
+    """
+    Return a canonical mission from the course catalog.
+
+    This endpoint is read-only.
+
+    The frontend should use this endpoint when opening a mission
+    rather than starting a new learning cycle just to display it.
+    """
+
+    normalized_mission_id = mission_id.strip()
+
+    if not normalized_mission_id:
+        raise HTTPException(
+            status_code=400,
+            detail="Mission ID cannot be empty.",
+        )
+
+    mission_lookup = get_mission_by_id(
+        normalized_mission_id,
+    )
+
+    if mission_lookup is None:
+        raise HTTPException(
+            status_code=404,
+            detail={
+                "message": f"Unknown mission ID: {normalized_mission_id}",
+                "mission_id": normalized_mission_id,
+            },
+        )
+
+    skill, mission = mission_lookup
+
+    return {
+        "status": "ok",
+        "mission_id": normalized_mission_id,
+        "skill": skill,
+        "mission": mission.get(
+            "title",
+            normalized_mission_id,
+        ),
+        "title": mission.get(
+            "title",
+            normalized_mission_id,
+        ),
+        "description": mission.get(
+            "description",
+            "",
+        ),
+        "skills": mission.get(
+            "skills",
+            [],
+        ),
+        "criteria": mission.get(
+            "criteria",
+            [],
+        ),
+        "concept_id": mission.get(
+            "concept_id",
+        ),
     }
 
 
@@ -151,10 +345,6 @@ async def start_learning(
         GOAL → MISSION
     """
 
-    # -----------------------------------------------------------------------
-    # Create orchestrator
-    # -----------------------------------------------------------------------
-
     orchestrator = LearningOrchestrator(
         learner_id=request.learner_id,
         skill=request.skill,
@@ -162,10 +352,6 @@ async def start_learning(
         mission=request.mission,
         mission_id=request.mission_id,
     )
-
-    # -----------------------------------------------------------------------
-    # Execute GOAL → MISSION
-    # -----------------------------------------------------------------------
 
     try:
         result = await orchestrator.run_learning_cycle()
@@ -180,26 +366,17 @@ async def start_learning(
         ) from exc
 
     except Exception as exc:
-        # Temporary diagnostic output.
-        # This will help us identify the real exception behind
-        # the ExceptionGroup returned by the MCP client.
         traceback.print_exc()
 
         raise HTTPException(
             status_code=500,
             detail={
-                "message": (
-                    "Learning journey could not be started."
-                ),
+                "message": "Learning journey could not be started.",
                 "error_type": type(exc).__name__,
                 "error": str(exc),
                 "traceback": traceback.format_exc(),
             },
         ) from exc
-
-    # -----------------------------------------------------------------------
-    # Return real learning state
-    # -----------------------------------------------------------------------
 
     return {
         "status": "started",
@@ -242,29 +419,17 @@ async def submit_mission_attempt(
         Real learning state
     """
 
-    # -----------------------------------------------------------------------
-    # Validate attempt
-    # -----------------------------------------------------------------------
-
     if not request.attempt.strip():
         raise HTTPException(
             status_code=400,
             detail="Attempt cannot be empty.",
         )
 
-    # -----------------------------------------------------------------------
-    # Validate mission
-    # -----------------------------------------------------------------------
-
     if not request.mission.strip():
         raise HTTPException(
             status_code=400,
             detail="Mission cannot be empty.",
         )
-
-    # -----------------------------------------------------------------------
-    # Create orchestrator
-    # -----------------------------------------------------------------------
 
     orchestrator = LearningOrchestrator(
         learner_id=request.learner_id,
@@ -273,10 +438,6 @@ async def submit_mission_attempt(
         mission=request.mission,
         mission_id=mission_id,
     )
-
-    # -----------------------------------------------------------------------
-    # Execute complete learning cycle
-    # -----------------------------------------------------------------------
 
     try:
         result = await orchestrator.run_learning_cycle(
@@ -294,6 +455,8 @@ async def submit_mission_attempt(
         ) from exc
 
     except Exception as exc:
+        traceback.print_exc()
+
         raise HTTPException(
             status_code=500,
             detail={
@@ -302,10 +465,6 @@ async def submit_mission_attempt(
                 "error": str(exc),
             },
         ) from exc
-
-    # -----------------------------------------------------------------------
-    # Return complete learning state
-    # -----------------------------------------------------------------------
 
     return {
         "status": "completed",
