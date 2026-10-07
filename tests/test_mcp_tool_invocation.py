@@ -77,3 +77,24 @@ def test_get_capability_profile_through_mcp():
         assert '"capabilities":' in text
 
     asyncio.run(run())
+
+def test_get_learner_profile_through_mcp():
+    async def run():
+        client = MCPLearningClient()
+
+        result = await client.call_tool(
+            "get_learner_profile",
+            {
+                "learner_id": "profile-mcp-test-learner",
+            },
+        )
+
+        assert result is not None
+        assert hasattr(result, "content")
+        assert len(result.content) > 0
+
+        text = result.content[0].text
+
+        assert "profile-mcp-test-learner" in text
+
+    asyncio.run(run())

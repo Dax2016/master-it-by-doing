@@ -20,6 +20,7 @@ def test_mcp_client_lists_learning_tools():
             "adapt_learning_mission",
             "get_learner_state",
             "get_capability_profile",
+            "get_learner_profile",
         }
 
         assert expected_tools.issubset(set(tools))

@@ -1,4 +1,4 @@
-from agent.orchestrator import LearningOrchestrator
+﻿from agent.orchestrator import LearningOrchestrator
 
 
 def test_orchestrator_learning_flow():
@@ -326,6 +326,73 @@ def test_orchestrator_gets_capability_profile():
 
     asyncio.run(run())
 
+def test_orchestrator_gets_learner_profile():
+
+    class FakeMCPClient:
+        async def call_tool(self, tool_name, arguments):
+            assert tool_name == "get_learner_profile"
+            assert arguments == {
+                "learner_id": "learner-profile-test",
+            }
+
+            class Result:
+                content = [
+                    type(
+                        "Content",
+                        (),
+                        {
+                            "text": (
+                                '{"status": "success", '
+                                '"learner_id": "learner-profile-test", '
+                                '"profile": {'
+                                '"current": {'
+                                '"goal": null, '
+                                '"active_mission": null'
+                                '}, '
+                                '"demonstrated": {'
+                                '"capabilities": [], '
+                                '"completed_missions": [], '
+                                '"evidence_count": 0'
+                                '}, '
+                                '"mastery": {'
+                                '"mastered": [], '
+                                '"developing": [], '
+                                '"needs_practice": []'
+                                '}, '
+                                '"strengths": [], '
+                                '"weaknesses": [], '
+                                '"next": {"mission": null}'
+                                '}'
+                                '}'
+                            )
+                        },
+                    )()
+                ]
+
+            return Result()
+
+    async def run():
+        orchestrator = LearningOrchestrator(
+            learner_id="learner-profile-test",
+            skill="Python",
+            level="beginner",
+            mcp_client=FakeMCPClient(),
+        )
+
+        result = await orchestrator.get_learner_profile()
+
+        assert result["status"] == "success"
+        assert result["learner_id"] == "learner-profile-test"
+        assert "profile" in result
+        assert result["profile"]["current"]["goal"] is None
+        assert result["profile"]["mastery"]["mastered"] == []
+        assert result["profile"]["strengths"] == []
+        assert result["profile"]["weaknesses"] == []
+
+    import asyncio
+
+    asyncio.run(run())
+
 def test_orchestrator_resolves_javascript_mission_by_id():
     orchestrator = LearningOrchestrator(
         learner_id="javascript-mission-test",
@@ -396,4 +463,5 @@ def test_orchestrator_rejects_unknown_mission_id():
         raise AssertionError(
             "Expected ValueError for unknown mission ID."
         )
+
 

@@ -77,6 +77,7 @@ while True:
         assert evaluation["score"] == 100
         assert evaluation["passed"] is True
         assert evaluation["mastery_status"] == "mastered"
+        assert evaluation["mission_id"] == mission_1["mission"]["id"]
         assert evaluation["passed_criteria"] == 4
         assert evaluation["total_criteria"] == 4
 

@@ -1,4 +1,4 @@
-﻿"""
+"""
 Master It By Doing
 Web API
 
@@ -140,13 +140,13 @@ async def get_learning_state(
     Flow:
 
         React
-          ↓
+          ?
         FastAPI
-          ↓
+          ?
         LearningOrchestrator
-          ↓
+          ?
         MCP
-          ↓
+          ?
         LearnerState
     """
 
@@ -331,18 +331,18 @@ async def start_learning(
     Workflow:
 
         React
-          ↓
+          ?
         FastAPI
-          ↓
+          ?
         LearningOrchestrator
-          ↓
+          ?
         MCP
-          ↓
+          ?
         create_learning_goal
-          ↓
+          ?
         create_mission
-          ↓
-        GOAL → MISSION
+          ?
+        GOAL ? MISSION
     """
 
     orchestrator = LearningOrchestrator(
@@ -399,23 +399,23 @@ async def submit_mission_attempt(
     Workflow:
 
         React
-          ↓
+          ?
         FastAPI
-          ↓
+          ?
         LearningOrchestrator
-          ↓
+          ?
         MCP
-          ↓
+          ?
         submit_attempt
-          ↓
+          ?
         evaluate_attempt
-          ↓
+          ?
         identify_weaknesses
-          ↓
+          ?
         generate_targeted_exercise
-          ↓
+          ?
         adapt_learning_mission
-          ↓
+          ?
         Real learning state
     """
 
@@ -470,4 +470,61 @@ async def submit_mission_attempt(
         "status": "completed",
         "mission_id": mission_id,
         "result": result,
+    }
+
+# ---------------------------------------------------------------------------
+# LEARNER PROFILE
+# ---------------------------------------------------------------------------
+
+@app.get("/api/learning/profile")
+async def get_learning_profile(
+    learner_id: str = "demo-learner",
+    skill: str = "python",
+    level: str = "beginner",
+) -> dict:
+    """
+    Return the learner's complete capability and learning profile.
+
+    The profile is a read-only projection of existing learner state.
+    It does not create or modify goals, missions, attempts, or mastery.
+    """
+
+    orchestrator = LearningOrchestrator(
+        learner_id=learner_id,
+        skill=skill,
+        level=level,
+    )
+
+    try:
+        profile_result = await orchestrator.get_learner_profile()
+
+    except ValueError as exc:
+        raise HTTPException(
+            status_code=400,
+            detail={
+                "message": str(exc),
+                "error_type": type(exc).__name__,
+            },
+        ) from exc
+
+    except Exception as exc:
+        traceback.print_exc()
+
+        raise HTTPException(
+            status_code=500,
+            detail={
+                "message": "Learner profile could not be retrieved.",
+                "error_type": type(exc).__name__,
+                "error": str(exc),
+            },
+        ) from exc
+
+    return {
+        "status": "ok",
+        "learner_id": learner_id,
+        "skill": skill,
+        "level": level,
+        "profile": profile_result.get("profile", profile_result),
+
+
     }

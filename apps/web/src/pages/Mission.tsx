@@ -81,12 +81,6 @@ type LearningState = {
   next_action: string
 }
 
-type StartLearningResponse = {
-  status: string
-  result: LearningState
-  detail?: unknown
-}
-
 type AttemptResponse = {
   status: string
   mission_id: string
@@ -121,26 +115,24 @@ export default function Mission() {
         setAttempt('')
         setEvaluation(null)
 
-        let data: StartLearningResponse
+        if (!missionId) {
+          throw new Error(
+            'No mission ID was provided.',
+          )
+        }
 
         const response = await fetch(
-          'http://127.0.0.1:8080/api/learning/start',
-          {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({
-              learner_id: 'demo-learner',
-              skill: 'python',
-              level: 'beginner',
-              mission_id: missionId ?? undefined,
-            }),
-          },
+          `http://127.0.0.1:8080/api/missions/${missionId}`,
         )
 
-        data =
-          (await response.json()) as StartLearningResponse
+        const data =
+          (await response.json()) as MissionResponse & {
+            status: string
+            mission_id: string
+            detail?: unknown
+            criteria?: Criterion[]
+            concept_id?: string
+          }
 
         if (!response.ok) {
           const detail = data.detail
@@ -163,14 +155,38 @@ export default function Mission() {
           throw new Error(message)
         }
 
-        if (!data.result) {
+        if (!data.mission_id) {
           throw new Error(
-            'The learning service returned no mission.',
+            'The learning service returned no mission ID.',
           )
         }
 
-        setLearningState(data.result)
-        setEvaluation(data.result.evaluation ?? null)
+        const mission: MissionResponse = {
+          mission: data.mission,
+          skill: data.skill,
+          id: data.mission_id,
+          title: data.title,
+          description: data.description,
+          skills: data.skills,
+        }
+
+        const nextLearningState: LearningState = {
+          learner_id: 'demo-learner',
+          skill: data.skill,
+          level: 'beginner',
+          goal: null,
+          mission,
+          latest_attempt: null,
+          attempt_text: null,
+          attempt_type: 'code',
+          evaluation: null,
+          weaknesses: null,
+          targeted_exercise: null,
+          adapted_mission: null,
+          next_action: 'submit_attempt',
+        }
+
+        setLearningState(nextLearningState)
       } catch (missionError) {
         console.error(
           'Failed to load mission:',
@@ -861,3 +877,6 @@ export default function Mission() {
     </main>
   )
 }
+
+
+

@@ -26,6 +26,7 @@ mcp = FastMCP(
     ),
 )
 
+app = mcp.streamable_http_app()
 learners: dict[str, LearnerState] = {}
 
 
@@ -108,6 +109,7 @@ def create_learning_goal(
     skill: str,
     learner_level: str = "beginner",
     learner_id: str = "demo-learner",
+    practice: bool = False,
 ) -> dict:
     """
     Create and record a practical learning goal for the learner.
@@ -192,6 +194,7 @@ def create_mission(
     learner_level: str = "beginner",
     concept_id: str | None = None,
     learner_id: str = "demo-learner",
+    practice: bool = False,
 ) -> dict:
     """
     Create or resume a practical hands-on learning mission.
@@ -306,6 +309,7 @@ def submit_attempt(
     learner_response: str,
     attempt_type: str = "text",
     learner_id: str = "demo-learner",
+    practice: bool = False,
 ) -> dict:
 
     """
@@ -371,6 +375,7 @@ def evaluate_attempt(
     learner_response: str,
     attempt_type: str = "text",
     learner_id: str = "demo-learner",
+    practice: bool = False,
 ) -> dict:
     """
     Evaluate a learner's submitted work using Amazon Bedrock,
@@ -415,12 +420,39 @@ def evaluate_attempt(
     # Resolve the learner-facing mission into the canonical mission.
     # -----------------------------------------------------------------------
 
-    mission_data = resolve_mission(
-        skill=skill,
-        mission=mission,
-    )
+    if practice:
+        practice_state = learner.active_practice or {}
+        parent_mission_id = practice_state.get("parent_mission_id")
+        parent_lookup = get_mission_by_id(parent_mission_id) if parent_mission_id else None
 
+        if parent_lookup is None:
+            return {
+                "status": "error",
+                "message": "Active practice has no valid parent mission.",
+            }
+
+        _, parent_mission = parent_lookup
+        targeted_criteria = set(practice_state.get("targeted_criteria", []))
+
+        mission_data = {
+            **parent_mission,
+            "id": parent_mission.get("id"),
+            "title": mission,
+            "mission": mission,
+            "description": practice_state.get("exercise", {}).get("objective") or practice_state.get("exercise", {}).get("instructions") or parent_mission.get("description", ""),
+            "criteria": [
+                criterion
+                for criterion in parent_mission.get("criteria", [])
+                if criterion.get("id") in targeted_criteria
+            ],
+        }
+    else:
+        mission_data = resolve_mission(
+            skill=skill,
+            mission=mission,
+        )
     mission_data["attempt_type"] = normalized_type
+
 
     attempt_data = {
         "learner_id": learner.learner_id,
@@ -531,7 +563,7 @@ def evaluate_attempt(
     # Derive demonstrated capability from successful evidence.
     # -----------------------------------------------------------------------
 
-    if final_evaluation.get("passed") is True:
+    if final_evaluation.get("passed") is True and not practice:
         concept = get_concept_for_mission(
             skill=skill,
             mission_id=mission_data.get("id", ""),
@@ -588,42 +620,43 @@ def evaluate_attempt(
         weaknesses=final_evaluation["weaknesses"],
     )
 
-    learner.record_mastery(
-        skill=skill,
-        mission=mission_data["mission"],
-        status=final_evaluation.get(
-            "status",
-            "needs_practice",
-        ),
-        score=final_evaluation.get("score", 0),
-        passed=final_evaluation.get("passed", False),
-        passed_criteria=final_evaluation.get(
-            "passed_criteria",
-            0,
-        ),
-        total_criteria=final_evaluation.get(
-            "total_criteria",
-            0,
-        ),
-        evidence={
-            "criteria": final_evaluation.get(
-                "criteria",
-                {},
+    if not practice:
+        learner.record_mastery(
+            skill=skill,
+            mission=mission_data["mission"],
+            status=final_evaluation.get(
+                "status",
+                "needs_practice",
             ),
-            "strengths": final_evaluation.get(
-                "strengths",
-                [],
+            score=final_evaluation.get("score", 0),
+            passed=final_evaluation.get("passed", False),
+            passed_criteria=final_evaluation.get(
+                "passed_criteria",
+                0,
             ),
-            "weaknesses": final_evaluation.get(
-                "weaknesses",
-                [],
+            total_criteria=final_evaluation.get(
+                "total_criteria",
+                0,
             ),
-            "feedback": final_evaluation.get(
-                "feedback",
-                "",
-            ),
-        },
-    )
+            evidence={
+                "criteria": final_evaluation.get(
+                    "criteria",
+                    {},
+                ),
+                "strengths": final_evaluation.get(
+                    "strengths",
+                    [],
+                ),
+                "weaknesses": final_evaluation.get(
+                    "weaknesses",
+                    [],
+                ),
+                "feedback": final_evaluation.get(
+                    "feedback",
+                    "",
+                ),
+            },
+        )
 
     # -----------------------------------------------------------------------
     # Return authoritative evaluation.
@@ -640,6 +673,7 @@ def evaluate_attempt(
         "learner_id": learner.learner_id,
         "skill": skill,
         "mission": mission,
+        "mission_id": mission_data.get("id"),
         "attempt_type": normalized_type,
 
         # AUTHORITATIVE RESULT
@@ -958,6 +992,7 @@ def adapt_learning_mission(
     skill: str,
     evaluation: dict,
     learner_id: str = "demo-learner",
+    practice: bool = False,
 ) -> dict:
     """
     Adapt the learner's next action based on an attempt evaluation.
@@ -1152,6 +1187,31 @@ def adapt_learning_mission(
         failed_criteria=failed_criteria,
     )
 
+    parent_mission_id = evaluation.get("mission_id")
+
+    if active_mission and active_mission.get("mission_id"):
+        parent_mission_id = active_mission.get("mission_id")
+
+    learner.set_active_practice(
+        {
+            "parent_mission_id": parent_mission_id,
+            "parent_mission": (
+                active_mission.get("title")
+                if active_mission
+                else evaluation.get("mission")
+            ),
+            "exercise": targeted_exercise.get("exercise"),
+            "targeted_criteria": [
+                criterion.get("id")
+                for criterion in failed_criteria
+                if isinstance(criterion, dict)
+                and criterion.get("id")
+            ],
+            "targeted_skills": weaknesses,
+            "status": "ready",
+        }
+    )
+
     return {
         "status": "adapted",
         "learner_id": learner.learner_id,
@@ -1178,6 +1238,7 @@ def adapt_learning_mission(
 @mcp.tool()
 def get_learner_state(
     learner_id: str = "demo-learner",
+    practice: bool = False,
 ) -> dict:
     """Return the complete state for one learner."""
 
@@ -1192,6 +1253,7 @@ def get_learner_state(
 @mcp.tool()
 def get_capability_profile(
     learner_id: str = "demo-learner",
+    practice: bool = False,
 ) -> dict:
     """Return the learner's demonstrated capabilities aggregated by skill."""
 
@@ -1203,6 +1265,21 @@ def get_capability_profile(
         "capabilities": learner.get_capability_profile(),
     }
 
+@mcp.tool()
+def get_learner_profile(
+    learner_id: str = "demo-learner",
+    practice: bool = False,
+) -> dict:
+    """Return the learner's complete capability and learning profile."""
+
+    learner = get_learner(learner_id)
+
+    return {
+        "status": "success",
+        "learner_id": learner.learner_id,
+        "profile": learner.get_learner_profile(),
+    }
+
 
 # ---------------------------------------------------------------------------
 # SERVER ENTRY POINT
@@ -1212,3 +1289,7 @@ if __name__ == "__main__":
     mcp.run(
         transport="streamable-http"
     )
+
+
+
+

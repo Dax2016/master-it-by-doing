@@ -1,4 +1,4 @@
-﻿import { useEffect, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 
 interface MissionDetails {
@@ -65,6 +65,9 @@ export default function Dashboard() {
   const [learningState, setLearningState] =
     useState<LearningState | null>(null)
 
+  const [learnerProfile, setLearnerProfile] =
+    useState<LearnerProfile | null>(null)
+
   const [loading, setLoading] = useState(true)
   const [starting, setStarting] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -87,6 +90,27 @@ export default function Dashboard() {
 
         const data: LearningStateResponse =
           await response.json()
+
+        const profileResponse = await fetch(
+          `${API_BASE_URL}/api/learning/profile?learner_id=demo-learner&skill=python&level=beginner`,
+        )
+
+        if (!profileResponse.ok) {
+          throw new Error(
+            `Learner profile service returned HTTP ${profileResponse.status}`,
+          )
+        }
+
+        const profileData: LearningProfileResponse =
+          await profileResponse.json()
+
+        if (!profileData.profile) {
+          throw new Error(
+            'Learning service returned no learner profile.',
+          )
+        }
+
+        setLearnerProfile(profileData.profile)
 
         const learner = data.state?.learner
 
@@ -198,6 +222,19 @@ export default function Dashboard() {
     learningState?.goal !== null &&
     learningState?.goal !== undefined
 
+  const activeMission =
+    learnerProfile?.current?.active_mission
+
+  const activeMissionId =
+    typeof activeMission?.mission_id === 'string'
+      ? activeMission.mission_id
+      : null
+
+  const activeMissionTitle =
+    typeof activeMission?.title === 'string'
+      ? activeMission.title
+      : 'Your practical challenge'
+
   return (
     <main className="dashboard">
       <header className="dashboard-header">
@@ -280,7 +317,7 @@ export default function Dashboard() {
                 >
                   {starting
                     ? 'Creating your mission...'
-                    : 'Start learning →'}
+                    : 'Start learning ?'}
                 </button>
               </div>
             ) : (
@@ -325,20 +362,28 @@ export default function Dashboard() {
                   <span>Current mission</span>
 
                   <h2>
-                    Your practical challenge
+                    {activeMissionTitle}
                   </h2>
 
                   <p>
-                    Your active mission is available from
-                    your learning journey.
+                    {typeof activeMission?.description ===
+                    'string'
+                      ? activeMission.description
+                      : 'Your active mission is available from your learning journey.'}
                   </p>
 
-                  <Link
-                    to="/mission/build-number-guessing-game"
-                    className="primary-btn"
-                  >
-                    Continue mission →
-                  </Link>
+                  {activeMissionId ? (
+                    <Link
+                      to={`/mission/${activeMissionId}`}
+                      className="primary-btn"
+                    >
+                      Continue mission ?
+                    </Link>
+                  ) : (
+                    <span className="primary-btn">
+                      No active mission
+                    </span>
+                  )}
                 </div>
               </div>
             )}
@@ -348,3 +393,38 @@ export default function Dashboard() {
     </main>
   )
 }
+interface LearnerProfile {
+  learner_id: string
+  current: {
+    goal: Record<string, unknown> | null
+    active_mission: Record<string, unknown> | null
+  }
+  demonstrated: {
+    capabilities: Record<string, unknown>[]
+    completed_missions: Record<string, unknown>[]
+    evidence_count: number
+  }
+  mastery: {
+    mastered: Record<string, unknown>[]
+    developing: Record<string, unknown>[]
+    needs_practice: Record<string, unknown>[]
+  }
+  strengths: string[]
+  weaknesses: string[]
+  next: {
+    mission: Record<string, unknown> | null
+  }
+}
+
+interface LearningProfileResponse {
+  status: string
+  learner_id: string
+  skill: string
+  level: string
+  profile: LearnerProfile
+}
+
+
+
+
+

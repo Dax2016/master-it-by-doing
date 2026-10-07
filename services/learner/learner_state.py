@@ -13,6 +13,7 @@ class LearnerState:
 
     learner_id: str
     active_mission: dict[str, Any] | None = None
+    active_practice: dict[str, Any] | None = None
 
     goals: list[dict] = field(default_factory=list)
     completed_missions: list[dict] = field(default_factory=list)
@@ -182,11 +183,20 @@ class LearnerState:
     def clear_active_mission(self) -> None:
         self.active_mission = None
 
+    def set_active_practice(self, practice: dict[str, Any]) -> None:
+        """Persist the currently assigned targeted practice exercise."""
+        self.active_practice = practice
+
+    def clear_active_practice(self) -> None:
+        """Clear the currently assigned targeted practice exercise."""
+        self.active_practice = None
+
     def to_dict(self) -> dict:
         """Return the learner state as a serializable dictionary."""
         return {
             "learner_id": self.learner_id,
             "active_mission": self.active_mission,
+            "active_practice": self.active_practice,
             "goals": self.goals,
             "completed_missions": self.completed_missions,
             "attempts": self.attempts,
@@ -280,3 +290,57 @@ class LearnerState:
                     existing_criteria[existing_index] = criterion
 
         return list(profiles.values())
+
+    def get_learner_profile(self) -> dict:
+        """
+        Return a read-only projection of the learner's current capability state.
+
+        The profile combines existing learner state without creating or
+        modifying any underlying records.
+        """
+
+        current_goal = self.goals[-1] if self.goals else None
+
+        mastered = []
+        developing = []
+        needs_practice = []
+
+        for skill, missions in self.mastery.items():
+            for mission, mastery in missions.items():
+                entry = {
+                    "skill": skill,
+                    "mission": mission,
+                    **mastery,
+                }
+
+                status = mastery.get("status")
+
+                if status == "mastered":
+                    mastered.append(entry)
+                elif status == "needs_practice":
+                    needs_practice.append(entry)
+                elif status == "developing":
+                    developing.append(entry)
+
+        return {
+            "learner_id": self.learner_id,
+            "current": {
+                "goal": current_goal,
+                "active_mission": self.active_mission,
+            },
+            "demonstrated": {
+                "capabilities": self.get_capability_profile(),
+                "completed_missions": self.completed_missions,
+                "evidence_count": len(self.evidence),
+            },
+            "mastery": {
+                "mastered": mastered,
+                "developing": developing,
+                "needs_practice": needs_practice,
+            },
+            "strengths": self.strengths,
+            "weaknesses": self.weaknesses,
+            "next": {
+                "mission": None,
+            },
+        }

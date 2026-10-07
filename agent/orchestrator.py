@@ -52,6 +52,7 @@ class LearnerSession:
     capability_profile: Optional[Dict[str, Any]] = None
 
     targeted_exercise: Optional[Dict[str, Any]] = None
+    active_practice: Optional[Dict[str, Any]] = None
     adapted_mission: Optional[Dict[str, Any]] = None
 
 
@@ -183,6 +184,35 @@ class LearningOrchestrator:
 
         return result
 
+    def _attempt_context(self) -> Dict[str, Any]:
+        """Return the mission context that should be used for the current attempt."""
+
+        if self.session.active_practice:
+            practice = self.session.active_practice
+            exercise = practice.get("exercise", {})
+
+            return {
+                "mission": exercise.get("title")
+                or practice.get("parent_mission")
+                or self._mission_text(),
+                "description": exercise.get("objective")
+                or exercise.get("instructions")
+                or "",
+                "practice": True,
+                "parent_mission_id": practice.get("parent_mission_id"),
+                "targeted_criteria": practice.get(
+                    "targeted_criteria",
+                    [],
+                ),
+            }
+
+        return {
+            "mission": self._mission_text(),
+            "description": "",
+            "practice": False,
+            "parent_mission_id": None,
+            "targeted_criteria": [],
+        }
     async def submit_attempt(
         self,
         attempt: str,
@@ -195,7 +225,8 @@ class LearningOrchestrator:
                 "Attempt cannot be empty."
             )
 
-        mission_text = self._mission_text()
+        attempt_context = self._attempt_context()
+        mission_text = attempt_context["mission"]
 
         if not mission_text:
             raise ValueError(
@@ -233,7 +264,8 @@ class LearningOrchestrator:
                 "Cannot evaluate an attempt before one has been submitted."
             )
 
-        mission_text = self._mission_text()
+        attempt_context = self._attempt_context()
+        mission_text = attempt_context["mission"]
 
         if not mission_text:
             raise ValueError(
@@ -247,6 +279,7 @@ class LearningOrchestrator:
         "mission": mission_text,
         "learner_response": self.session.attempt_text,
         "attempt_type": self.session.attempt_type,
+            "practice": bool(self.session.active_practice),
         "learner_id": self.session.learner_id,
     },
         )
@@ -359,6 +392,18 @@ class LearningOrchestrator:
         return self.session.capability_profile
 
 
+    async def get_learner_profile(self) -> Any:
+        """Retrieve the learner's complete capability and learning profile."""
+
+        result = await self.mcp.call_tool(
+            "get_learner_profile",
+            {
+                "learner_id": self.session.learner_id,
+            },
+        )
+
+        return self._extract_result(result)
+
     async def get_learner_state(self) -> Any:
         """Retrieve the learner's current state."""
 
@@ -370,6 +415,19 @@ class LearningOrchestrator:
         )
 
         return self._extract_result(result)
+
+    async def restore_active_practice(self) -> Any:
+        """Restore persisted targeted practice into the current session."""
+
+        state = await self.get_learner_state()
+
+        learner_state = state.get("learner", state)
+
+        self.session.active_practice = learner_state.get(
+            "active_practice"
+        )
+
+        return self.session.active_practice
 
     # ============================================================
     # COMPLETE LEARNING CYCLE
@@ -401,6 +459,12 @@ class LearningOrchestrator:
               ↓
             ADAPT
         """
+
+        # --------------------------------------------------------
+        # RESTORE PERSISTED PRACTICE
+        # --------------------------------------------------------
+
+        await self.restore_active_practice()
 
         # --------------------------------------------------------
         # GOAL
@@ -956,6 +1020,23 @@ class LearningOrchestrator:
             return value
 
         return str(value)
+
+
+
+    async def get_learner_profile(self) -> Any:
+        """Retrieve the learner's complete capability and learning profile."""
+
+        result = await self.mcp.call_tool(
+            "get_learner_profile",
+            {
+                "learner_id": self.session.learner_id,
+            },
+        )
+
+        return self._extract_result(result)
+
+
+
 
 
 
