@@ -835,6 +835,49 @@ def generate_targeted_exercise(
 
     elif (
         normalized_skill == "python"
+        and (
+            "track_score" in failed_ids
+            or "final_score" in failed_ids
+        )
+    ):
+        exercise = {
+            "title": (
+                "Quiz Score Tracking Challenge"
+            ),
+            "objective": (
+                "Upgrade the quiz so it tracks correct answers "
+                "and displays the learner's final score."
+            ),
+            "instructions": [
+                (
+                    "Create a score variable initialized before "
+                    "the quiz loop."
+                ),
+                (
+                    "Increase the score when the learner answers "
+                    "a question correctly."
+                ),
+                (
+                    "Keep the score available across all quiz "
+                    "questions."
+                ),
+                (
+                    "Display the final score after all questions "
+                    "have been processed."
+                ),
+            ],
+            "success_signal": (
+                "The quiz accumulates the learner's score across "
+                "questions and displays the final score."
+            ),
+            "targeted_skills": weaknesses,
+            "targeted_criteria": sorted(
+                failed_ids
+            ),
+        }
+
+    elif (
+        normalized_skill == "python"
         and "multiple_questions" in failed_ids
     ):
         exercise = {
