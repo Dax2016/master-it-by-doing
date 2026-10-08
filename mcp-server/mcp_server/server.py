@@ -11,6 +11,7 @@ from content.course_catalog import (
     get_concepts_for_mission,
     get_concepts as get_catalog_concepts,
     get_missions,
+    get_mission_by_id,
 )
 
 allowed_hosts = [
@@ -871,6 +872,46 @@ def generate_targeted_exercise(
             ),
         }
 
+    elif (
+        normalized_skill == "python"
+        and "total_expense_function" in failed_ids
+    ):
+        exercise = {
+            "title": (
+                "Expense Tracker Function Challenge"
+            ),
+            "objective": (
+                "Practice defining and using a function that "
+                "calculates the total of expense amounts."
+            ),
+            "instructions": [
+                (
+                    "Create a function named total_expense that "
+                    "accepts a list of expense amounts."
+                ),
+                (
+                    "Use the function to calculate the total "
+                    "of all expense amounts."
+                ),
+                (
+                    "Return the calculated total from the function."
+                ),
+                (
+                    "Call the function with a sample expense list "
+                    "and display the result."
+                ),
+            ],
+            "success_signal": (
+                "The total_expense function accepts expense amounts, "
+                "calculates their total, returns the result, and "
+                "is called successfully."
+            ),
+            "targeted_skills": weaknesses,
+            "targeted_criteria": sorted(
+                failed_ids
+            ),
+        }
+
     elif normalized_skill == "python":
         exercise = {
             "title": (
@@ -1054,6 +1095,90 @@ def adapt_learning_mission(
     # Mastery path.
     # -----------------------------------------------------------------------
 
+    # -----------------------------------------------------------------------
+    # Targeted practice path.
+    # -----------------------------------------------------------------------
+
+    if practice:
+        active_mission = learner.active_mission
+
+        if passed is True:
+            learner.clear_active_practice()
+
+            return {
+                "status": "adapted",
+                "learner_id": learner.learner_id,
+                "skill": skill,
+                "score": score,
+                "passed": passed,
+                "strengths": strengths,
+                "weaknesses": weaknesses,
+                "capability_profile": capability_profile,
+                "active_mission": active_mission,
+                "targeted_exercise": None,
+                "mission_completed": False,
+                "practice_completed": True,
+                "next_action": "retry_parent_mission",
+                "message": (
+                    "The targeted practice was completed successfully. "
+                    "The parent mission remains active and can now be retried."
+                ),
+            }
+
+        targeted_exercise = generate_targeted_exercise(
+            skill=skill,
+            weaknesses=weaknesses,
+            failed_criteria=failed_criteria,
+        )
+
+        parent_mission_id = evaluation.get("mission_id")
+
+        if active_mission and active_mission.get("mission_id"):
+            parent_mission_id = active_mission.get("mission_id")
+
+        learner.set_active_practice(
+            {
+                "parent_mission_id": parent_mission_id,
+                "parent_mission": (
+                    active_mission.get("title")
+                    if active_mission
+                    else evaluation.get("mission")
+                ),
+                "exercise": targeted_exercise.get("exercise"),
+                "targeted_criteria": [
+                    criterion.get("id")
+                    for criterion in failed_criteria
+                    if isinstance(criterion, dict)
+                    and criterion.get("id")
+                ],
+                "targeted_skills": weaknesses,
+                "status": "ready",
+            }
+        )
+
+        return {
+            "status": "adapted",
+            "learner_id": learner.learner_id,
+            "skill": skill,
+            "score": score,
+            "passed": passed,
+            "strengths": strengths,
+            "weaknesses": weaknesses,
+            "capability_profile": capability_profile,
+            "active_mission": active_mission,
+            "targeted_exercise": targeted_exercise,
+            "mission_completed": False,
+            "practice_completed": False,
+            "next_action": (
+                "Complete the targeted exercise, submit the attempt, "
+                "and evaluate the new attempt."
+            ),
+        }
+
+    # -----------------------------------------------------------------------
+    # Mastery path.
+    # -----------------------------------------------------------------------
+
     mastery_status = evaluation.get("mastery_status")
     is_mastered = (
         passed is True
@@ -1224,6 +1349,7 @@ def adapt_learning_mission(
         "active_mission": active_mission,
         "targeted_exercise": targeted_exercise,
         "mission_completed": False,
+        "practice_completed": False,
         "next_action": (
             "Complete the targeted exercise, submit the attempt, "
             "and evaluate the new attempt."
@@ -1289,7 +1415,3 @@ if __name__ == "__main__":
     mcp.run(
         transport="streamable-http"
     )
-
-
-
-

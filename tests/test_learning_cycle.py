@@ -3,6 +3,32 @@ import asyncio
 from agent.orchestrator import LearningOrchestrator
 
 
+def test_expense_tracker_targeted_exercise_routes_to_failed_function():
+    from mcp_server.server import generate_targeted_exercise
+
+    result = generate_targeted_exercise(
+        skill="python",
+        weaknesses=["functions"],
+        failed_criteria=[
+            {
+                "id": "total_expense_function",
+                "name": "Calculate total expenses using a function",
+                "passed": False,
+            }
+        ],
+    )
+
+    assert result["status"] == "created"
+    assert (
+        result["exercise"]["title"]
+        == "Expense Tracker Function Challenge"
+    )
+    assert (
+        "total_expense_function"
+        in result["exercise"]["targeted_criteria"]
+    )
+
+
 def test_complete_learning_cycle():
     async def run():
         orchestrator = LearningOrchestrator(

@@ -365,17 +365,18 @@ class LearningOrchestrator:
             )
 
         result = await self.mcp.call_tool(
-        "adapt_learning_mission",
-   {
-        "skill": self.session.skill,
-        "evaluation": self.session.evaluation,
-        "learner_id": self.session.learner_id,
-   },
+            "adapt_learning_mission",
+            {
+                "skill": self.session.skill,
+                "evaluation": self.session.evaluation,
+                "learner_id": self.session.learner_id,
+                "practice": bool(self.session.active_practice),
+            },
         )
 
         self.session.adapted_mission = self._extract_result(result)
 
-        return result
+        return self.session.adapted_mission
 
     async def get_capability_profile(self) -> Any:
         """Retrieve the learner's demonstrated capability profile."""
@@ -502,14 +503,20 @@ class LearningOrchestrator:
             await self.evaluate_attempt()
             await self.identify_weaknesses()
 
-            # Targeted practice is only meaningful when
-            # actual weaknesses have been identified.
-            if self._weakness_list():
-                await self.generate_targeted_exercise()
+            # Practice attempts are already routed through the
+            # practice-aware adaptation path. Do not generate a
+            # second exercise before adaptation.
+            if self.session.active_practice:
+                await self.adapt_learning_mission()
             else:
-                self.session.targeted_exercise = None
+                # Targeted practice is only meaningful when
+                # actual weaknesses have been identified.
+                if self._weakness_list():
+                    await self.generate_targeted_exercise()
+                else:
+                    self.session.targeted_exercise = None
 
-            await self.adapt_learning_mission()
+                await self.adapt_learning_mission()
 
         return self.get_state()
 
