@@ -917,6 +917,45 @@ def generate_targeted_exercise(
 
     elif (
         normalized_skill == "python"
+        and "add_expense_function" in failed_ids
+    ):
+        exercise = {
+            "title": (
+                "Expense Tracker Add-Expense Challenge"
+            ),
+            "objective": (
+                "Practice defining and using a function that "
+                "adds an expense to the expense list."
+            ),
+            "instructions": [
+                (
+                    "Create a function named add_expense that "
+                    "accepts an expense amount and an expense list."
+                ),
+                (
+                    "Add the expense amount to the list inside "
+                    "the function."
+                ),
+                (
+                    "Call the function to add at least one expense."
+                ),
+                (
+                    "Display the updated expense list."
+                ),
+            ],
+            "success_signal": (
+                "The add_expense function accepts an expense amount "
+                "and list, adds the expense to the list, and is "
+                "called successfully."
+            ),
+            "targeted_skills": weaknesses,
+            "targeted_criteria": sorted(
+                failed_ids
+            ),
+        }
+
+    elif (
+        normalized_skill == "python"
         and "total_expense_function" in failed_ids
     ):
         exercise = {
