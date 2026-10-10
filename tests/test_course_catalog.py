@@ -3,6 +3,7 @@ from content.course_catalog import (
     get_concept_for_mission,
     get_concepts,
     get_course,
+    get_courses,
     get_mission_by_id,
     get_missions,
 )
@@ -269,3 +270,44 @@ def test_javascript_console_todo_mission_has_evaluation_criteria():
         "task_collection",
     ]
 
+
+def test_get_courses_returns_learning_path_metadata():
+    courses = get_courses()
+
+    assert len(courses) == 3
+
+    assert courses == [
+        {
+            "skill": "python",
+            "id": "python-programming",
+            "title": "Python Programming",
+            "difficulty": "beginner",
+            "description": (
+                "Build practical Python programs while developing "
+                "core programming skills."
+            ),
+            "mission_count": 3,
+        },
+        {
+            "skill": "aws-cloud",
+            "id": "aws-cloud-computing",
+            "title": "AWS Cloud Computing",
+            "difficulty": "beginner",
+            "description": (
+                "Build practical cloud applications using core AWS services "
+                "and serverless architecture."
+            ),
+            "mission_count": 1,
+        },
+        {
+            "skill": "javascript",
+            "id": "javascript-development",
+            "title": "JavaScript Development",
+            "difficulty": "beginner",
+            "description": (
+                "Build practical JavaScript applications "
+                "while developing core programming skills."
+            ),
+            "mission_count": 1,
+        },
+    ]

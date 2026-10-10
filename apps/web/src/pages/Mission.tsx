@@ -88,6 +88,13 @@ type AttemptResponse = {
   detail?: unknown
 }
 
+
+type VoiceReaction = {
+  emoji: string
+  title: string
+  message: string
+}
+
 export default function Mission() {
   const { missionId } = useParams()
 
@@ -107,6 +114,35 @@ export default function Mission() {
 
   const [error, setError] = useState('')
 
+  const [voiceEnabled, setVoiceEnabled] = useState(true)
+const [voiceReaction, setVoiceReaction] =
+  useState<VoiceReaction | null>(null)
+
+function announceReaction(reaction: VoiceReaction) {
+  setVoiceReaction(reaction)
+
+  if (
+    !voiceEnabled ||
+    typeof window === 'undefined' ||
+    !('speechSynthesis' in window)
+  ) {
+    return
+  }
+
+  window.speechSynthesis.cancel()
+
+  const utterance = new SpeechSynthesisUtterance(
+    reaction.message,
+  )
+
+  utterance.lang = 'en'
+  utterance.rate = 1
+  utterance.pitch = 1.05
+  utterance.volume = 1
+
+  window.speechSynthesis.speak(utterance)
+}
+
   useEffect(() => {
     async function loadMission() {
       try {
@@ -122,7 +158,7 @@ export default function Mission() {
         }
 
         const response = await fetch(
-          `http://127.0.0.1:8080/api/missions/${missionId}`,
+          `http://127.0.0.1:8001/api/missions/${missionId}`,
         )
 
         const data =
@@ -230,7 +266,7 @@ export default function Mission() {
 
     try {
       const response = await fetch(
-        `http://127.0.0.1:8080/api/missions/${
+        `http://127.0.0.1:8001/api/missions/${
           missionId ?? '1'
         }/attempt`,
         {
@@ -295,7 +331,64 @@ export default function Mission() {
       }
 
       setLearningState(data.result)
-      setEvaluation(data.result.evaluation ?? null)
+
+const resultEvaluation =
+  data.result.evaluation ?? null
+
+setEvaluation(resultEvaluation)
+
+const nextAction =
+  data.result.adapted_mission?.next_action
+
+let reaction: VoiceReaction
+
+if (
+  resultEvaluation?.passed === true &&
+  (
+    nextAction === 'create_advanced_mission' ||
+    nextAction === 'learning_path_complete'
+  )
+) {
+  reaction = {
+    emoji: '🏆',
+    title: 'Mastery demonstrated!',
+    message:
+      "Outstanding! You've demonstrated mastery of this mission. Your hard work paid off!",
+  }
+} else if (
+  resultEvaluation?.passed === true &&
+  nextAction === 'retry_parent_mission'
+) {
+  reaction = {
+    emoji: '🎯',
+    title: 'Targeted practice completed!',
+    message:
+      "Excellent! You've strengthened the skill you were working on. Now let's apply it to the original mission!",
+  }
+} else if (resultEvaluation?.passed === true) {
+  reaction = {
+    emoji: '🎉',
+    title: 'Great work!',
+    message:
+      "Well done! You've passed this evaluation. Keep building and strengthening your skills!",
+  }
+} else if (resultEvaluation) {
+  reaction = {
+    emoji: '💪',
+    title: 'Keep going!',
+    message:
+      "Not quite yet, but every attempt is progress. Let's work on the areas that need improvement and try again!",
+  }
+} else {
+  reaction = {
+    emoji: '🔎',
+    title: 'Submission received',
+    message:
+      "Your submission has been received. Let's review the results and see what you've demonstrated!",
+  }
+}
+
+announceReaction(reaction)
     } catch (submissionError) {
       console.error(
         'Submission failed:',
@@ -336,6 +429,9 @@ export default function Mission() {
   const adaptedExercise =
     adaptedMission?.targeted_exercise?.exercise ?? null
 
+  const practiceCompleted =
+    adaptedMission?.next_action === 'retry_parent_mission'
+
   const nextMission =
     adaptedMission?.next_mission ?? null
 
@@ -351,11 +447,13 @@ export default function Mission() {
   const learningLoopStatus =
     isMastered
       ? 'Mastery demonstrated'
-      : adaptedExercise
-        ? 'Targeted practice ready'
-        : evaluation
-          ? 'Evaluation complete'
-          : 'Mission in progress'
+      : practiceCompleted
+        ? 'Practice complete — retry original mission'
+        : adaptedExercise
+          ? 'Targeted practice ready'
+          : evaluation
+            ? 'Evaluation complete'
+            : 'Mission in progress'
 
   return (
     <main className="mission-page">
@@ -442,7 +540,7 @@ export default function Mission() {
 
               <div
                 className={`learning-step ${
-                  adaptedExercise || isMastered
+                  adaptedExercise || practiceCompleted || isMastered
                     ? 'active'
                     : ''
                 }`}
@@ -476,6 +574,62 @@ export default function Mission() {
               evaluation and challenge.
             </p>
           </section>
+
+          <section
+  className="voice-companion"
+  aria-live="polite"
+>
+  <div className="voice-companion-controls">
+    <div>
+      <span className="eyebrow">
+        YOUR LEARNING COMPANION
+      </span>
+      <p>
+        Encouragement that responds to your actual
+        learning results.
+      </p>
+    </div>
+
+    <button
+      type="button"
+      onClick={() => {
+        if (voiceEnabled) {
+          window.speechSynthesis?.cancel()
+        }
+        setVoiceEnabled((enabled) => !enabled)
+      }}
+      aria-pressed={voiceEnabled}
+    >
+      {voiceEnabled ? '🔊 Voice on' : '🔇 Voice off'}
+    </button>
+  </div>
+
+  {voiceReaction && (
+    <div className="voice-reaction">
+      <span
+        className="voice-reaction-emoji"
+        aria-hidden="true"
+      >
+        {voiceReaction.emoji}
+      </span>
+
+      <div>
+        <h3>{voiceReaction.title}</h3>
+        <p>{voiceReaction.message}</p>
+
+        <button
+          type="button"
+          disabled={!voiceEnabled}
+          onClick={() => {
+            announceReaction(voiceReaction)
+          }}
+        >
+          ▶ Replay reaction
+        </button>
+      </div>
+    </div>
+  )}
+  </section>
 
           <section className="mission-content">
             <article className="mission-card">
@@ -779,8 +933,69 @@ export default function Mission() {
                           to={`/mission/${nextMission.id}`}
                           className="next-mission-button"
                         >
-                          Start Next Mission →
+                          Start Next Mission â†’
                         </Link>
+                      </div>
+                    </section>
+                  )}
+
+                  {practiceCompleted && mission && (
+                    <section className="adapted-mission">
+                      <div className="adapted-mission-header">
+                        <div>
+                          <span className="eyebrow">
+                            PRACTICE COMPLETE
+                          </span>
+                          <h2>
+                            You're ready to retry the original mission.
+                          </h2>
+                        </div>
+                        <span className="status">PASSED</span>
+                      </div>
+
+                      <p>
+                        You've strengthened the skill identified in your
+                        previous evaluation. Now apply it to the complete
+                        {` ${mission.title}`} challenge.
+                      </p>
+
+                      {adaptedMission?.message && (
+                        <p>{adaptedMission.message}</p>
+                      )}
+
+                      <div className="next-action">
+                        <span className="eyebrow">YOUR NEXT STEP</span>
+                        <h3>
+                          Return to your original solution and demonstrate
+                          the skill in context.
+                        </h3>
+
+                        <button
+                          type="button"
+                          className="next-mission-button"
+                          onClick={() => {
+                            setAttempt('')
+                            setEvaluation(null)
+                            setError('')
+
+                            setLearningState((current) =>
+                              current
+                                ? {
+                                    ...current,
+                                    latest_attempt: null,
+                                    attempt_text: null,
+                                    evaluation: null,
+                                    weaknesses: null,
+                                    targeted_exercise: null,
+                                    adapted_mission: null,
+                                    next_action: 'submit_attempt',
+                                  }
+                                : current,
+                            )
+                          }}
+                        >
+                          Retry Original Mission →
+                        </button>
                       </div>
                     </section>
                   )}
@@ -877,6 +1092,3 @@ export default function Mission() {
     </main>
   )
 }
-
-
-

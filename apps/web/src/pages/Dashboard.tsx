@@ -54,12 +54,25 @@ interface LearningState {
   next_action: string
 }
 
+interface LearningPath {
+  skill: string
+  id: string
+  title: string
+  difficulty: string
+  description: string
+  mission_count: number
+}
+
+interface LearningPathsResponse {
+  status: string
+  paths: LearningPath[]
+}
 interface StartLearningResponse {
   status: string
   result: LearningState
 }
 
-const API_BASE_URL = 'http://127.0.0.1:8080'
+const API_BASE_URL = 'http://127.0.0.1:8001'
 
 export default function Dashboard() {
   const [learningState, setLearningState] =
@@ -68,6 +81,14 @@ export default function Dashboard() {
   const [learnerProfile, setLearnerProfile] =
     useState<LearnerProfile | null>(null)
 
+  const [learningPaths, setLearningPaths] =
+    useState<LearningPath[]>([])
+
+  const [selectedPath, setSelectedPath] =
+    useState('python')
+
+
+  const [pathsLoading, setPathsLoading] = useState(true)
   const [loading, setLoading] = useState(true)
   const [starting, setStarting] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -77,6 +98,21 @@ export default function Dashboard() {
       try {
         setLoading(true)
         setError(null)
+        const pathsResponse = await fetch(
+          `${API_BASE_URL}/api/learning/paths`,
+        )
+
+        if (!pathsResponse.ok) {
+          throw new Error(
+            `Learning paths service returned HTTP ${pathsResponse.status}`,
+          )
+        }
+
+        const pathsData: LearningPathsResponse =
+          await pathsResponse.json()
+
+        setLearningPaths(pathsData.paths ?? [])
+        setPathsLoading(false)
 
         const response = await fetch(
           `${API_BASE_URL}/api/learning/state?learner_id=demo-learner&skill=python&level=beginner`,
@@ -180,7 +216,7 @@ export default function Dashboard() {
           },
           body: JSON.stringify({
             learner_id: 'demo-learner',
-            skill: 'python',
+            skill: selectedPath,
             level: 'beginner',
           }),
         },
@@ -286,7 +322,7 @@ export default function Dashboard() {
 
             <p>
               Make sure the learning API is running on
-              http://127.0.0.1:8080.
+              http://127.0.0.1:8001.
             </p>
           </div>
         )}
@@ -321,7 +357,8 @@ export default function Dashboard() {
                 </button>
               </div>
             ) : (
-              <div className="dashboard-grid">
+              <>
+                <div className="dashboard-grid">
                 <div className="dashboard-card">
                   <span>Current goal</span>
 
@@ -386,7 +423,67 @@ export default function Dashboard() {
                   )}
                 </div>
               </div>
+
+              <section className="learning-paths-section">
+                <div>
+                  <span className="eyebrow">
+                    AVAILABLE CAPABILITIES
+                  </span>
+
+                  <h2>Choose what to master next.</h2>
+
+                  <p>
+                    Build practical evidence across different
+                    learning paths.
+                  </p>
+                </div>
+
+                {pathsLoading ? (
+                  <div className="dashboard-card">
+                    <span>Loading learning paths...</span>
+                  </div>
+                ) : learningPaths.length === 0 ? (
+                  <div className="dashboard-card">
+                    <span>No learning paths available.</span>
+                  </div>
+                ) : (
+                  <div className="dashboard-grid">
+                {learningPaths.map((path) => (
+                 <button
+                 key={path.skill}
+                 type="button"
+                 className={`dashboard-card learning-path-card ${
+                 selectedPath === path.skill ? 'selected' : ''
+            }`}
+             onClick={() => setSelectedPath(path.skill)}
+            aria-pressed={selectedPath === path.skill}
+  >
+      <span>{path.difficulty}</span>
+
+    <h2>{path.title}</h2>
+
+    <p>{path.description}</p>
+
+    <p>
+      {path.mission_count} practical{' '}
+      {path.mission_count === 1
+        ? 'mission'
+        : 'missions'}
+    </p>
+
+    <strong>
+      {selectedPath === path.skill
+        ? 'Selected'
+        : 'Select path'}
+    </strong>
+  </button>
+  ))}
+                  </div>
+                )}
+              </section>
+              </>
             )}
+
           </>
         )}
       </section>
@@ -423,8 +520,3 @@ interface LearningProfileResponse {
   level: string
   profile: LearnerProfile
 }
-
-
-
-
-

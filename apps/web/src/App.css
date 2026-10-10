@@ -1584,3 +1584,51 @@ footer p {
     display: none;
   }
 }
+
+.voice-companion {
+  margin: 1.5rem 0;
+  padding: 1.25rem;
+  border: 1px solid rgba(148, 163, 184, 0.3);
+  border-radius: 16px;
+  background: rgba(148, 163, 184, 0.06);
+}
+
+.voice-companion-controls {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+
+.voice-companion-controls p,
+.voice-reaction p {
+  margin: 0.4rem 0;
+  line-height: 1.6;
+}
+
+.voice-companion button {
+  cursor: pointer;
+}
+
+.voice-reaction {
+  display: flex;
+  align-items: flex-start;
+  gap: 1rem;
+  margin-top: 1rem;
+  padding-top: 1rem;
+  border-top: 1px solid rgba(148, 163, 184, 0.25);
+}
+
+.voice-reaction-emoji {
+  font-size: 2rem;
+  line-height: 1.2;
+}
+
+.voice-reaction h3 {
+  margin: 0 0 0.5rem;
+}
+
+.voice-reaction button {
+  margin-top: 0.75rem;
+}

@@ -480,7 +480,6 @@ def evaluate_attempt(
             "message": "Assessment failed.",
             "error_type": type(exc).__name__,
         }
-
     # -----------------------------------------------------------------------
     # Attach evaluation to existing attempt.
     # -----------------------------------------------------------------------
@@ -1472,6 +1471,75 @@ def get_capability_profile(
         "learner_id": learner.learner_id,
         "capabilities": learner.get_capability_profile(),
     }
+
+
+def _recommend_next_mission(
+    learner: LearnerState,
+    skill: str,
+) -> dict | None:
+    """Recommend an existing mission using the learner's mastery records."""
+
+    missions = get_missions(skill)
+    skill_key = skill.strip().lower()
+
+    mastery_records = {}
+    for stored_skill, records in learner.mastery.items():
+        if stored_skill.strip().lower() == skill_key:
+            mastery_records = records
+            break
+
+    def normalize(value: str) -> str:
+        return "".join(
+            character.lower()
+            for character in value
+            if character.isalnum()
+        )
+
+    def mastery_for(mission: dict) -> dict | None:
+        accepted_names = {
+            normalize(str(mission.get("id", ""))),
+            normalize(str(mission.get("title", ""))),
+        }
+
+        for recorded_name, result in mastery_records.items():
+            if normalize(str(recorded_name)) in accepted_names:
+                return result
+
+        return None
+
+    # Address an existing learning gap before moving to new work.
+    for mission in missions:
+        record = mastery_for(mission)
+        if record and record.get("status") == "needs_practice":
+            return {
+                "id": mission["id"],
+                "skill": skill,
+                "title": mission["title"],
+                "description": mission["description"],
+                "skills": mission["skills"],
+                "reason": "needs_practice",
+            }
+
+    # Otherwise, choose the first mission not yet mastered.
+    for mission in missions:
+        record = mastery_for(mission)
+
+        if not (
+            record
+            and record.get("status") == "mastered"
+            and record.get("passed") is True
+        ):
+            return {
+                "id": mission["id"],
+                "skill": skill,
+                "title": mission["title"],
+                "description": mission["description"],
+                "skills": mission["skills"],
+                "reason": "new_mission",
+            }
+
+    # No eligible missions remain in this catalog.
+    return None
 
 @mcp.tool()
 def get_learner_profile(

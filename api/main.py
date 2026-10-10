@@ -14,7 +14,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 
 from agent.orchestrator import LearningOrchestrator
-from content.course_catalog import get_mission_by_id
+from content.course_catalog import get_courses, get_mission_by_id
 
 
 app = FastAPI(
@@ -250,6 +250,14 @@ async def get_learning_capabilities(
 # ---------------------------------------------------------------------------
 # MISSION LOOKUP
 # ---------------------------------------------------------------------------
+
+@app.get("/api/learning/paths")
+async def get_learning_paths() -> dict:
+    """Return the available learning paths from the course catalog."""
+    return {
+        "status": "ok",
+        "paths": get_courses(),
+    }
 
 @app.get("/api/missions/{mission_id}")
 async def get_mission(

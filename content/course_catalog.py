@@ -451,3 +451,17 @@ def get_concept_for_mission(
             return concept
 
     return None
+def get_courses() -> list[dict]:
+    """Return the available learning paths from the course catalog."""
+
+    return [
+        {
+            "skill": skill,
+            "id": course.get("id", skill),
+            "title": course.get("title", skill),
+            "difficulty": course.get("difficulty", "beginner"),
+            "description": course.get("description", ""),
+            "mission_count": len(course.get("missions", [])),
+        }
+        for skill, course in COURSE_CATALOG.items()
+    ]
