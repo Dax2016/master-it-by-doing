@@ -3,6 +3,7 @@ from typing import Any
 from services.assessment.bedrock_evaluator import BedrockEvaluator
 from services.assessment.ground_truth import GroundTruthEvaluator
 from services.assessment.python_code_validator import PythonCodeValidator
+from services.assessment.javascript_code_validator import JavaScriptCodeValidator
 
 
 class AssessmentService:
@@ -38,6 +39,7 @@ class AssessmentService:
 
         attempt_for_evaluation = dict(attempt)
         syntax_result = None
+        javascript_syntax_result = None
 
         if (
             str(attempt.get("attempt_type", "")).strip().lower()
@@ -56,6 +58,18 @@ class AssessmentService:
 
             attempt_for_evaluation["validation"] = {
                 "python_syntax": syntax_result,
+            }
+        elif (
+            str(attempt.get("attempt_type", "")).strip().lower()
+            == "code"
+            and str(attempt.get("skill", "")).strip().lower()
+            == "javascript"
+        ):
+            javascript_syntax_result = JavaScriptCodeValidator.validate(
+                str(attempt.get("learner_response", ""))
+            )
+            attempt_for_evaluation["validation"] = {
+                "javascript_syntax": javascript_syntax_result,
             }
 
         bedrock_evaluation = self.bedrock_evaluator.evaluate(
@@ -79,6 +93,15 @@ class AssessmentService:
             # Preserve deterministic validation evidence for Ground Truth.
             bedrock_evaluation["validation"] = {
                 "python_syntax": syntax_result,
+            }
+
+        if javascript_syntax_result is not None:
+            bedrock_evaluation = self._enforce_javascript_syntax(
+                bedrock_evaluation,
+                javascript_syntax_result,
+            )
+            bedrock_evaluation["validation"] = {
+                "javascript_syntax": javascript_syntax_result,
             }
 
         bedrock_evaluation = self._normalize_criteria(
@@ -161,6 +184,54 @@ class AssessmentService:
             return cleaned
 
         return evaluation
+
+    @staticmethod
+    def _enforce_javascript_syntax(
+        evaluation: dict[str, Any],
+        syntax_result: dict[str, Any],
+    ) -> dict[str, Any]:
+        """Prevent mastery when submitted JavaScript has a syntax error."""
+        if syntax_result.get("syntax_valid") is not False:
+            return evaluation
+
+        result = dict(evaluation)
+        error = str(
+            syntax_result.get("error") or "JavaScript syntax check failed."
+        )[:300]
+        criteria = result.get("criteria")
+
+        if isinstance(criteria, list):
+            result["criteria"] = [
+                {
+                    **criterion,
+                    "passed": False,
+                    "evidence": f"JavaScript syntax validation failed: {error}",
+                }
+                if isinstance(criterion, dict)
+                else criterion
+                for criterion in criteria
+            ]
+        else:
+            result["criteria"] = []
+
+        result["score"] = 0
+        result["passed"] = False
+        result["feedback"] = (
+            "The JavaScript submission contains a syntax error and cannot "
+            "run. Fix the reported syntax issue, then resubmit."
+        )
+
+        weaknesses = result.get("weaknesses")
+        if not isinstance(weaknesses, list):
+            weaknesses = []
+        message = f"JavaScript syntax error: {error}"
+        if message not in weaknesses:
+            weaknesses = [*weaknesses, message]
+        result["weaknesses"] = weaknesses
+        result["next_action"] = (
+            "Fix the JavaScript syntax error and resubmit the mission."
+        )
+        return result
 
     @staticmethod
     def _normalize_criteria(

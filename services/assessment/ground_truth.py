@@ -1,4 +1,4 @@
-﻿from typing import Any
+from typing import Any
 
 
 class GroundTruthEvaluator:
@@ -27,6 +27,47 @@ class GroundTruthEvaluator:
         required_criteria = self.get_required_criteria(
             mission
         )
+
+        # Invalid JavaScript is an authoritative rejection.
+        # Do not trust AI pass results when syntax validation fails.
+        validation = evaluation.get("validation")
+        javascript_syntax = (
+            validation.get("javascript_syntax")
+            if isinstance(validation, dict)
+            else None
+        )
+
+        if (
+            isinstance(javascript_syntax, dict)
+            and javascript_syntax.get("syntax_valid") is False
+        ):
+            error = str(
+                javascript_syntax.get("error")
+                or "JavaScript syntax validation failed."
+            )[:300]
+
+            rejected_criteria = [
+                {
+                    "id": criterion["id"],
+                    "name": criterion["name"],
+                    "passed": False,
+                    "evidence": (
+                        f"JavaScript syntax validation failed: {error}"
+                    ),
+                }
+                for criterion in required_criteria
+            ]
+
+            total_count = len(rejected_criteria)
+
+            return {
+                "passed": False,
+                "score": 0,
+                "criteria": rejected_criteria,
+                "passed_criteria": 0,
+                "total_criteria": total_count,
+                "status": "needs_practice",
+            }
 
         deterministic_criteria = self._get_deterministic_criteria(
             evaluation
