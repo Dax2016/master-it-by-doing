@@ -95,6 +95,57 @@ type VoiceReaction = {
   message: string
 }
 
+
+type VoiceProfile = {
+  id: string
+  name: string
+  description: string
+  gender: 'male' | 'female'
+  character: string
+  rate: number
+  pitch: number
+}
+
+const VOICE_PROFILES: VoiceProfile[] = [
+  {
+    id: 'mentor',
+    name: 'The Mentor',
+    description: 'Calm, clear and thoughtful',
+    gender: 'male',
+    character: 'White male character',
+    rate: 0.95,
+    pitch: 0.95,
+  },
+  {
+    id: 'coach',
+    name: 'The Coach',
+    description: 'Energetic and motivating',
+    gender: 'male',
+    character: 'Black male character',
+    rate: 1.05,
+    pitch: 1.05,
+  },
+  {
+    id: 'guide',
+    name: 'The Guide',
+    description: 'Patient and reassuring',
+    gender: 'female',
+    character: 'White female character',
+    rate: 0.95,
+    pitch: 1.08,
+  },
+  {
+    id: 'challenger',
+    name: 'The Challenger',
+    description: 'Expressive and confident',
+    gender: 'female',
+    character: 'Black female character',
+    rate: 1.05,
+    pitch: 1.12,
+  },
+]
+
+
 export default function Mission() {
   const { missionId } = useParams()
 
@@ -115,14 +166,31 @@ export default function Mission() {
   const [error, setError] = useState('')
 
   const [voiceEnabled, setVoiceEnabled] = useState(true)
-const [voiceReaction, setVoiceReaction] =
+  const [voiceReaction, setVoiceReaction] =
   useState<VoiceReaction | null>(null)
 
-function announceReaction(reaction: VoiceReaction) {
-  setVoiceReaction(reaction)
+  
+  const [selectedVoice, setSelectedVoice] = useState<string>(() => {
+  if (typeof window === 'undefined') return 'default'
 
+  return window.localStorage.getItem(
+    'master-it-by-doing-voice-profile',
+  ) || 'default'
+})
+
+useEffect(() => {
+  window.localStorage.setItem(
+    'master-it-by-doing-voice-profile',
+    selectedVoice,
+  )
+}, [selectedVoice])
+
+
+function speakWithProfile(
+  message: string,
+  profileId: string,
+) {
   if (
-    !voiceEnabled ||
     typeof window === 'undefined' ||
     !('speechSynthesis' in window)
   ) {
@@ -131,16 +199,52 @@ function announceReaction(reaction: VoiceReaction) {
 
   window.speechSynthesis.cancel()
 
-  const utterance = new SpeechSynthesisUtterance(
-    reaction.message,
-  )
-
+  const utterance = new SpeechSynthesisUtterance(message)
   utterance.lang = 'en'
   utterance.rate = 1
   utterance.pitch = 1.05
   utterance.volume = 1
 
+  const profile = VOICE_PROFILES.find(
+    (item) => item.id === profileId,
+  )
+
+  if (profile) {
+    utterance.rate = profile.rate
+    utterance.pitch = profile.pitch
+
+    const voices = window.speechSynthesis.getVoices()
+    const englishVoices = voices.filter(
+      (voice) => voice.lang.toLowerCase().startsWith('en'),
+    )
+
+    const preferredVoiceNames: Record<string, string> = {
+      mentor: 'Microsoft George - English (United Kingdom)',
+      coach: 'Microsoft Ryan Online (Natural) - English (United Kingdom)',
+      guide: 'Microsoft Sonia Online (Natural) - English (United Kingdom)',
+      challenger: 'Microsoft Natasha Online (Natural) - English (Australia)',
+    }
+
+    const preferredName = preferredVoiceNames[profile.id]
+
+    const matchingVoice = englishVoices.find(
+      (voice) => voice.name === preferredName,
+    )
+
+    if (matchingVoice) {
+      utterance.voice = matchingVoice
+    }
+  }
+
   window.speechSynthesis.speak(utterance)
+}
+
+function announceReaction(reaction: VoiceReaction) {
+  setVoiceReaction(reaction)
+
+  if (!voiceEnabled) return
+
+  speakWithProfile(reaction.message, selectedVoice)
 }
 
   useEffect(() => {
@@ -602,6 +706,48 @@ announceReaction(reaction)
     >
       {voiceEnabled ? '🔊 Voice on' : '🔇 Voice off'}
     </button>
+  </div>
+
+
+  <div className="voice-profile-picker">
+    <label htmlFor="learning-voice-profile">
+      Choose your learning voice
+    </label>
+
+    <select
+      id="learning-voice-profile"
+      value={selectedVoice}
+      onChange={(event) => setSelectedVoice(event.target.value)}
+    >
+      <option value="default">Existing voice (default)</option>
+      {VOICE_PROFILES.map((profile) => (
+        <option key={profile.id} value={profile.id}>
+          {profile.name} — {profile.character}
+        </option>
+      ))}
+    </select>
+
+    {VOICE_PROFILES.map((profile) => (
+      <div className="voice-profile-option" key={profile.id}>
+        <div>
+          <strong>{profile.name}</strong>
+          <p>{profile.description}</p>
+        </div>
+
+        <button
+          type="button"
+          disabled={!voiceEnabled}
+          onClick={() =>
+            speakWithProfile(
+              `Hello! I am ${profile.name}. ${profile.description}. Let's continue learning together.`,
+              profile.id,
+            )
+          }
+        >
+          Preview voice
+        </button>
+      </div>
+    ))}
   </div>
 
   {voiceReaction && (

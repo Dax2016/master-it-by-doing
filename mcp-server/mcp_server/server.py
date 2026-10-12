@@ -14,11 +14,20 @@ from content.course_catalog import (
     get_mission_by_id,
 )
 
+
 allowed_hosts = [
     host.strip()
     for host in os.getenv("MCP_ALLOWED_HOSTS", "").split(",")
     if host.strip()
 ]
+
+# Keep local development secure when no hosts are configured.
+if not allowed_hosts:
+    allowed_hosts = [
+        "127.0.0.1:*",
+        "localhost:*",
+]
+
 
 mcp = FastMCP(
     "Master It By Doing",

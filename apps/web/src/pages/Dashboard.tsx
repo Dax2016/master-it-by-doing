@@ -115,8 +115,7 @@ export default function Dashboard() {
         setPathsLoading(false)
 
         const response = await fetch(
-          `${API_BASE_URL}/api/learning/state?learner_id=demo-learner&skill=python&level=beginner`,
-        )
+          `${API_BASE_URL}/api/learning/state?learner_id=demo-learner&skill=${encodeURIComponent(selectedPath)}&level=beginner`,     )
 
         if (!response.ok) {
           throw new Error(
@@ -200,7 +199,7 @@ export default function Dashboard() {
     }
 
     loadLearningState()
-  }, [])
+      }, [selectedPath])
 
   async function startLearningJourney() {
     try {
@@ -288,17 +287,31 @@ export default function Dashboard() {
       </header>
 
       <section className="dashboard-content">
-        <div>
-          <span className="eyebrow">
-            YOUR MASTERY JOURNEY
-          </span>
+        
+<div className="dashboard-hero">
+  <div className="dashboard-hero-copy">
+    <span className="eyebrow">
+      YOUR MASTERY JOURNEY
+    </span>
 
-          <h1>Welcome back.</h1>
+    <h1>Welcome back.</h1>
 
-          <p>
-            Your next challenge is waiting for you.
-          </p>
-        </div>
+    <p>
+      Your next challenge is waiting for you.
+    </p>
+
+    <p className="dashboard-hero-tagline">
+      Learn. Build. Prove. Advance.
+    </p>
+  </div>
+
+  <img
+    src="/images/dashboard/ms_04.jpg"
+    alt="Master It By Doing learning journey"
+    className="dashboard-hero-image"
+  />
+</div>
+
 
         {loading && (
           <div className="dashboard-card">
@@ -395,12 +408,19 @@ export default function Dashboard() {
                   </p>
                 </div>
 
-                <div className="dashboard-card mission-dashboard-card">
-                  <span>Current mission</span>
+                
+<div className="dashboard-card mission-dashboard-card">
+  <span>Current mission</span>
 
-                  <h2>
-                    {activeMissionTitle}
-                  </h2>
+  <img
+    src="/images/dashboard/ms_05.jpg"  
+    className="mission-dashboard-image"
+  />
+
+  <h2>
+    {activeMissionTitle}
+  </h2>
+
 
                   <p>
                     {typeof activeMission?.description ===
