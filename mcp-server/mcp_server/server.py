@@ -80,9 +80,11 @@ def resolve_mission(
 
     for canonical in canonical_missions:
         canonical_title = canonical["title"].strip().lower()
+        canonical_id = str(canonical.get("id", "")).strip().lower()
 
         if (
-            normalized_mission == canonical_title
+            normalized_mission == canonical_id
+            or normalized_mission == canonical_title
             or normalized_mission.startswith(
                 canonical_title + ":"
             )
