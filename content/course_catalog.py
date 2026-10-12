@@ -293,11 +293,14 @@ COURSE_CATALOG = {
         ),
         "missions": [
             {
-            "id": "build-serverless-hello-world-api",
-            "title": "Build a Serverless Hello World API",
+                "id": "build-serverless-hello-world-api",
+                "title": "Build a Serverless Hello World API",
                 "description": (
-                    "Create an AWS Lambda function that returns a JSON response "
-                    "and expose it through Amazon API Gateway."
+                    "Design and implement a Lambda handler that returns a JSON "
+                    "response. Document how API Gateway invokes it, provide the "
+                    "configuration or code, and show a representative test "
+                    "request and response. Clearly distinguish local evidence "
+                    "from resources actually deployed in AWS."
                 ),
                 "skills": [
                     "AWS Lambda",
@@ -307,22 +310,63 @@ COURSE_CATALOG = {
                     "Cloud deployment",
                 ],
                 "criteria": [
-                    {
-                        "id": "lambda_function",
-                        "name": "Create an AWS Lambda function",
-                    },
-                    {
-                        "id": "json_response",
-                        "name": "Return a JSON response from the Lambda function",
-                    },
-                    {
-                        "id": "api_gateway",
-                        "name": "Expose the Lambda function through API Gateway",
-                    },
-                    {
-                        "id": "api_test",
-                        "name": "Test the API endpoint and verify the expected response",
-                    },
+                    {"id": "lambda_function", "name": "Create an AWS Lambda function"},
+                    {"id": "json_response", "name": "Return a JSON response from the Lambda function"},
+                    {"id": "api_gateway", "name": "Explain or configure how API Gateway invokes the Lambda function"},
+                    {"id": "api_test", "name": "Test the handler or deployed endpoint and verify the expected response"},
+                ],
+            },
+            {
+                "id": "build-event-driven-order-notification",
+                "title": "Build an Event-Driven Order Notification",
+                "description": (
+                    "Design an event-driven order notification workflow. Submit "
+                    "a sample order event, a Lambda handler that processes it, "
+                    "and an explanation or configuration showing how Amazon SQS "
+                    "or EventBridge triggers processing. Include success and "
+                    "failure handling, plus a sample event and expected result. "
+                    "Do not claim deployment without deployment evidence."
+                ),
+                "skills": [
+                    "Amazon EventBridge",
+                    "Amazon SQS",
+                    "AWS Lambda",
+                    "Event-driven architecture",
+                    "Error handling",
+                ],
+                "criteria": [
+                    {"id": "order_event", "name": "Define a structured order event with the required order details"},
+                    {"id": "event_source", "name": "Explain or configure an event source using SQS or EventBridge"},
+                    {"id": "lambda_processing", "name": "Process the order event in a Lambda handler"},
+                    {"id": "notification_result", "name": "Produce a clear notification result for a successfully processed order"},
+                    {"id": "failure_handling", "name": "Describe or implement handling for invalid events or processing failures"},
+                ],
+            },
+            {
+                "id": "secure-and-troubleshoot-serverless-api",
+                "title": "Secure and Troubleshoot a Serverless API",
+                "description": (
+                    "Review a serverless API design and improve its security "
+                    "and diagnostics. Provide a least-privilege IAM policy "
+                    "example, request validation, appropriate HTTP error "
+                    "responses, and a troubleshooting plan using CloudWatch "
+                    "logs and metrics. Explain how you would verify each "
+                    "change, without exposing secrets."
+                ),
+                "skills": [
+                    "AWS IAM",
+                    "Least privilege",
+                    "Amazon API Gateway",
+                    "Amazon CloudWatch",
+                    "API validation",
+                    "Troubleshooting",
+                ],
+                "criteria": [
+                    {"id": "least_privilege", "name": "Provide an IAM policy limited to the permissions the API requires"},
+                    {"id": "request_validation", "name": "Validate incoming requests and handle invalid input"},
+                    {"id": "http_errors", "name": "Return appropriate HTTP status codes and safe error messages"},
+                    {"id": "observability", "name": "Describe or configure useful CloudWatch logs and monitoring"},
+                    {"id": "troubleshooting", "name": "Provide a reproducible troubleshooting and verification plan"},
                 ],
             },
         ],
@@ -341,7 +385,9 @@ COURSE_CATALOG = {
                 "title": "Build a Console To-Do List",
                 "description": (
                     "Create a JavaScript program that allows a user to add, "
-                    "view, and remove tasks."
+                    "view, and remove tasks. Use an array to store tasks, "
+                    "functions to organize operations, and input validation "
+                    "to handle invalid choices."
                 ),
                 "skills": [
                     "Variables",
@@ -351,33 +397,69 @@ COURSE_CATALOG = {
                     "Loops",
                 ],
                 "criteria": [
-                    {
-                        "id": "add_task",
-                        "name": "Allow the user to add a task",
-                    },
-                    {
-                        "id": "view_tasks",
-                        "name": "Display the current tasks",
-                    },
-                    {
-                        "id": "remove_task",
-                        "name": "Allow the user to remove a task",
-                    },
-                    {
-                        "id": "functions",
-                        "name": "Use functions to organize task operations",
-                    },
-                    {
-                        "id": "task_collection",
-                        "name": "Store and update tasks in an array",
-                    },
+                    {"id": "add_task", "name": "Allow the user to add a task"},
+                    {"id": "view_tasks", "name": "Display the current tasks"},
+                    {"id": "remove_task", "name": "Allow the user to remove a task"},
+                    {"id": "functions", "name": "Use functions to organize task operations"},
+                    {"id": "task_collection", "name": "Store and update tasks in an array"},
+                ],
+            },
+            {
+                "id": "build-product-inventory-manager",
+                "title": "Build a Product Inventory Manager",
+                "description": (
+                    "Build a JavaScript inventory program that stores products "
+                    "as objects in an array. Implement functions to add a "
+                    "product, search by name or ID, update stock, remove a "
+                    "product, and display the current inventory. Validate "
+                    "inputs and explain how duplicate IDs are handled."
+                ),
+                "skills": [
+                    "JavaScript objects",
+                    "Arrays",
+                    "Functions",
+                    "Array methods",
+                    "Input validation",
+                ],
+                "criteria": [
+                    {"id": "product_model", "name": "Represent products with objects containing stable identifiers and relevant fields"},
+                    {"id": "add_product", "name": "Add a product to the inventory"},
+                    {"id": "search_product", "name": "Find a product using its name or identifier"},
+                    {"id": "update_stock", "name": "Update product stock and reject invalid quantities"},
+                    {"id": "remove_product", "name": "Remove a selected product from the inventory"},
+                    {"id": "display_inventory", "name": "Display the current inventory using organized functions"},
+                ],
+            },
+            {
+                "id": "build-async-api-dashboard",
+                "title": "Build an Async API Dashboard",
+                "description": (
+                    "Create a small JavaScript dashboard that retrieves data "
+                    "from a public or supplied JSON API using fetch and "
+                    "async/await. Display the returned data and implement "
+                    "visible loading, empty, and error states. Explain how "
+                    "HTTP failures and network errors are handled."
+                ),
+                "skills": [
+                    "fetch",
+                    "Promises",
+                    "async/await",
+                    "JSON",
+                    "HTTP responses",
+                    "Error handling",
+                ],
+                "criteria": [
+                    {"id": "fetch_data", "name": "Request data from a JSON API using fetch"},
+                    {"id": "async_await", "name": "Use async/await to manage the asynchronous request"},
+                    {"id": "render_data", "name": "Parse and display useful fields from the returned JSON data"},
+                    {"id": "loading_state", "name": "Show a loading state while the request is in progress"},
+                    {"id": "error_state", "name": "Handle HTTP failures and network errors with a useful error state"},
+                    {"id": "empty_state", "name": "Handle an empty or missing data result gracefully"},
                 ],
             },
         ],
     },
 }
-
-
 def get_course(skill: str) -> dict | None:
     """Return the course definition for a skill."""
     normalized_skill = (

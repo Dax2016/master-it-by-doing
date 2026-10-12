@@ -24,11 +24,15 @@ def test_python_has_three_missions():
     assert missions[2]["title"] == "Build a Function-Based Expense Tracker"
 
 
-def test_javascript_has_one_mission():
+def test_javascript_has_three_missions():
     missions = get_missions("javascript")
 
-    assert len(missions) == 1
-    assert missions[0]["title"] == "Build a Console To-Do List"
+    assert len(missions) == 3
+    assert [mission["title"] for mission in missions] == [
+        "Build a Console To-Do List",
+        "Build a Product Inventory Manager",
+        "Build an Async API Dashboard",
+    ]
 
 
 def test_skill_lookup_is_case_insensitive():
@@ -43,11 +47,15 @@ def test_unknown_skill_returns_no_missions():
     assert get_missions("unknown-skill") == []
 
 
-def test_aws_cloud_has_one_mission():
+def test_aws_cloud_has_three_missions():
     missions = get_missions("aws-cloud")
 
-    assert len(missions) == 1
-    assert missions[0]["title"] == "Build a Serverless Hello World API"
+    assert len(missions) == 3
+    assert [mission["title"] for mission in missions] == [
+        "Build a Serverless Hello World API",
+        "Build an Event-Driven Order Notification",
+        "Secure and Troubleshoot a Serverless API",
+    ]
     assert len(missions[0]["criteria"]) == 4
 
 def test_skill_lookup_normalizes_human_friendly_names():
@@ -297,7 +305,7 @@ def test_get_courses_returns_learning_path_metadata():
                 "Build practical cloud applications using core AWS services "
                 "and serverless architecture."
             ),
-            "mission_count": 1,
+            "mission_count": 3,
         },
         {
             "skill": "javascript",
@@ -308,6 +316,46 @@ def test_get_courses_returns_learning_path_metadata():
                 "Build practical JavaScript applications "
                 "while developing core programming skills."
             ),
-            "mission_count": 1,
+            "mission_count": 3,
         },
     ]
+
+
+
+def test_expanded_javascript_missions_have_stable_ids_and_criteria():
+    missions = get_missions("javascript")
+    assert [mission["id"] for mission in missions] == [
+        "build-console-to-do-list",
+        "build-product-inventory-manager",
+        "build-async-api-dashboard",
+    ]
+    for mission in missions:
+        assert mission["criteria"]
+        assert all(item.get("id") and item.get("name") for item in mission["criteria"])
+
+
+def test_expanded_aws_missions_have_stable_ids_and_criteria():
+    missions = get_missions("aws-cloud")
+    assert [mission["id"] for mission in missions] == [
+        "build-serverless-hello-world-api",
+        "build-event-driven-order-notification",
+        "secure-and-troubleshoot-serverless-api",
+    ]
+    for mission in missions:
+        assert mission["criteria"]
+        assert all(item.get("id") and item.get("name") for item in mission["criteria"])
+
+
+def test_get_mission_by_id_resolves_new_javascript_and_aws_missions():
+    expected = {
+        "build-product-inventory-manager": "javascript",
+        "build-async-api-dashboard": "javascript",
+        "build-event-driven-order-notification": "aws-cloud",
+        "secure-and-troubleshoot-serverless-api": "aws-cloud",
+    }
+    for mission_id, expected_skill in expected.items():
+        result = get_mission_by_id(mission_id)
+        assert result is not None
+        skill, mission = result
+        assert skill == expected_skill
+        assert mission["id"] == mission_id

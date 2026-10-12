@@ -197,48 +197,88 @@ function speakWithProfile(
     return
   }
 
-  window.speechSynthesis.cancel()
+  const synth = window.speechSynthesis
 
-  const utterance = new SpeechSynthesisUtterance(message)
-  utterance.lang = 'en'
-  utterance.rate = 1
-  utterance.pitch = 1.05
-  utterance.volume = 1
+  const preferredVoiceNames: Record<string, string[]> = {
+    mentor: [
+      'Microsoft George - English (United Kingdom)',
+      'Microsoft Luke Online (Natural) - English (South Africa)',
+      'Microsoft Thomas Online (Natural) - English (United Kingdom)',
+    ],
+    coach: [
+      'Microsoft Ryan Online (Natural) - English (United Kingdom)',
+      'Microsoft Luke Online (Natural) - English (South Africa)',
+      'Microsoft Andrew Online (Natural) - English (United States)',
+    ],
+    guide: [
+      'Microsoft Sonia Online (Natural) - English (United Kingdom)',
+      'Microsoft Leah Online (Natural) - English (South Africa)',
+      'Microsoft Hazel - English (United Kingdom)',
+    ],
+    challenger: [
+      'Microsoft Natasha Online (Natural) - English (Australia)',
+      'Microsoft Leah Online (Natural) - English (South Africa)',
+      'Microsoft Emma Online (Natural) - English (United States)',
+    ],
+  }
 
   const profile = VOICE_PROFILES.find(
     (item) => item.id === profileId,
   )
 
-  if (profile) {
-    utterance.rate = profile.rate
-    utterance.pitch = profile.pitch
+  function speak(voices: SpeechSynthesisVoice[]) {
+    const utterance = new SpeechSynthesisUtterance(message)
 
-    const voices = window.speechSynthesis.getVoices()
-    const englishVoices = voices.filter(
-      (voice) => voice.lang.toLowerCase().startsWith('en'),
-    )
+    utterance.lang = 'en'
+    utterance.rate = profile?.rate ?? 1
+    utterance.pitch = profile?.pitch ?? 1.05
+    utterance.volume = 1
 
-    const preferredVoiceNames: Record<string, string> = {
-      mentor: 'Microsoft George - English (United Kingdom)',
-      coach: 'Microsoft Ryan Online (Natural) - English (United Kingdom)',
-      guide: 'Microsoft Sonia Online (Natural) - English (United Kingdom)',
-      challenger: 'Microsoft Natasha Online (Natural) - English (Australia)',
+    if (profile) {
+      const names = preferredVoiceNames[profile.id] ?? []
+
+      const matchingVoice = names
+        .map((name) => voices.find((voice) => voice.name === name))
+        .find(
+          (voice): voice is SpeechSynthesisVoice =>
+            voice !== undefined,
+        )
+
+      if (matchingVoice) {
+        utterance.voice = matchingVoice
+        utterance.lang = matchingVoice.lang
+      } else {
+        const englishVoice = voices.find((voice) =>
+          voice.lang.toLowerCase().startsWith('en'),
+        )
+
+        if (englishVoice) {
+          utterance.voice = englishVoice
+          utterance.lang = englishVoice.lang
+        }
+      }
     }
 
-    const preferredName = preferredVoiceNames[profile.id]
-
-    const matchingVoice = englishVoices.find(
-      (voice) => voice.name === preferredName,
-    )
-
-    if (matchingVoice) {
-      utterance.voice = matchingVoice
-    }
+    synth.cancel()
+    synth.speak(utterance)
   }
 
-  window.speechSynthesis.speak(utterance)
-}
+  let attempts = 0
 
+  function waitForVoices() {
+    const voices = synth.getVoices()
+
+    if (voices.length > 0 || attempts >= 4) {
+      speak(voices)
+      return
+    }
+
+    attempts += 1
+    window.setTimeout(waitForVoices, 250)
+  }
+
+  waitForVoices()
+}
 function announceReaction(reaction: VoiceReaction) {
   setVoiceReaction(reaction)
 
