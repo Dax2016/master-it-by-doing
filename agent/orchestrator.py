@@ -1031,19 +1031,41 @@ class LearningOrchestrator:
 
 
     async def get_learner_profile(self) -> Any:
-        """Retrieve the learner's complete capability and learning profile."""
+        """Return the learner profile without inventing active missions."""
 
         result = await self.mcp.call_tool(
             "get_learner_profile",
-            {
-                "learner_id": self.session.learner_id,
-            },
+            {"learner_id": self.session.learner_id},
+        )
+        data = self._extract_result(result)
+
+        if not isinstance(data, dict):
+            return data
+
+        profile = data.get("profile")
+        if not isinstance(profile, dict):
+            return data
+
+        current = profile.get("current")
+        if not isinstance(current, dict):
+            return data
+
+        active_mission = current.get("active_mission")
+
+        def normalize_skill(value: Any) -> str:
+            return str(value or "").strip().lower().replace(" ", "-")
+
+        selected_skill = normalize_skill(self.session.skill)
+        active_skill = normalize_skill(
+            active_mission.get("skill")
+            if isinstance(active_mission, dict)
+            else None
         )
 
-        return self._extract_result(result)
+        # Keep only a real active mission for the selected learning path.
+        if isinstance(active_mission, dict) and active_skill == selected_skill:
+            return data
 
-
-
-
-
+        current["active_mission"] = None
+        return data
 

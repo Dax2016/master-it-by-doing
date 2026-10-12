@@ -462,6 +462,148 @@ def test_orchestrator_rejects_unknown_mission_id():
     else:
         raise AssertionError(
             "Expected ValueError for unknown mission ID."
+    )
+
+
+def test_get_learner_profile_does_not_invent_active_mission():
+    import asyncio
+    import json
+
+    class FakeMCPClient:
+        async def call_tool(self, tool_name, arguments):
+            assert tool_name == "get_learner_profile"
+
+            class Content:
+                text = json.dumps({
+                    "status": "success",
+                    "learner_id": "fallback-test",
+                    "profile": {
+                        "current": {
+                            "goal": None,
+                            "active_mission": None,
+                        },
+                        "demonstrated": {
+                            "capabilities": [],
+                            "completed_missions": [],
+                            "evidence_count": 0,
+                        },
+                        "mastery": {
+                            "mastered": [],
+                            "developing": [],
+                            "needs_practice": [],
+                        },
+                        "strengths": [],
+                        "weaknesses": [],
+                        "next": {"mission": None},
+                    },
+                })
+
+            class Result:
+                content = [Content()]
+
+            return Result()
+
+    async def run():
+        orchestrator = LearningOrchestrator(
+            learner_id="fallback-test",
+            skill="Python",
+            level="beginner",
+            mcp_client=FakeMCPClient(),
         )
 
+        original_session_mission = orchestrator.session.mission
+        result = await orchestrator.get_learner_profile()
 
+        active = result["profile"]["current"]["active_mission"]
+
+        assert active is None
+        assert orchestrator.session.mission == original_session_mission
+
+    asyncio.run(run())
+
+
+def test_get_learner_profile_preserves_same_skill_mission():
+    import asyncio
+    import json
+
+    existing_mission = {
+        "mission_id": "my-python-mission",
+        "title": "My Python Mission",
+        "description": "Continue existing work.",
+        "skill": "python",
+        "status": "in_progress",
+    }
+
+    class FakeMCPClient:
+        async def call_tool(self, tool_name, arguments):
+            class Content:
+                text = json.dumps({
+                    "status": "success",
+                    "learner_id": "preserve-test",
+                    "profile": {
+                        "current": {
+                            "goal": None,
+                            "active_mission": existing_mission,
+                        },
+                    },
+                })
+
+            class Result:
+                content = [Content()]
+
+            return Result()
+
+    async def run():
+        orchestrator = LearningOrchestrator(
+            learner_id="preserve-test",
+            skill="Python",
+            level="beginner",
+            mcp_client=FakeMCPClient(),
+        )
+
+        result = await orchestrator.get_learner_profile()
+
+        assert (
+            result["profile"]["current"]["active_mission"]
+            == existing_mission
+        )
+
+    asyncio.run(run())
+
+
+def test_get_learner_profile_returns_none_mission_for_skill_without_catalog():
+    import asyncio
+    import json
+
+    class FakeMCPClient:
+        async def call_tool(self, tool_name, arguments):
+            class Content:
+                text = json.dumps({
+                    "status": "success",
+                    "learner_id": "empty-catalog-test",
+                    "profile": {
+                        "current": {
+                            "goal": None,
+                            "active_mission": None,
+                        },
+                    },
+                })
+
+            class Result:
+                content = [Content()]
+
+            return Result()
+
+    async def run():
+        orchestrator = LearningOrchestrator(
+            learner_id="empty-catalog-test",
+            skill="AWS",
+            level="beginner",
+            mcp_client=FakeMCPClient(),
+        )
+
+        result = await orchestrator.get_learner_profile()
+
+        assert result["profile"]["current"]["active_mission"] is None
+
+    asyncio.run(run())

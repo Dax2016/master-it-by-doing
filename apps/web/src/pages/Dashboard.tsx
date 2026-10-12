@@ -127,7 +127,7 @@ export default function Dashboard() {
           await response.json()
 
         const profileResponse = await fetch(
-          `${API_BASE_URL}/api/learning/profile?learner_id=demo-learner&skill=python&level=beginner`,
+          `${API_BASE_URL}/api/learning/profile?learner_id=demo-learner&skill=${encodeURIComponent(selectedPath)}&level=beginner`,
         )
 
         if (!profileResponse.ok) {
@@ -237,6 +237,25 @@ export default function Dashboard() {
       }
 
       setLearningState(data.result)
+
+      // Refresh the profile after the learning cycle creates its mission.
+      const profileResponse = await fetch(
+        `${API_BASE_URL}/api/learning/profile?learner_id=demo-learner&skill=${encodeURIComponent(selectedPath)}&level=beginner`,
+      )
+
+      if (profileResponse.ok) {
+        const profileData: LearningProfileResponse =
+          await profileResponse.json()
+
+        if (profileData.profile) {
+          setLearnerProfile(profileData.profile)
+        }
+      } else {
+        console.error(
+          'Learning started, but the profile refresh failed:',
+          profileResponse.status,
+        )
+      }
     } catch (err) {
       console.error(
         'Failed to start learning journey:',
