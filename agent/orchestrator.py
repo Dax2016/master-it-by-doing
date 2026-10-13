@@ -418,17 +418,37 @@ class LearningOrchestrator:
         return self._extract_result(result)
 
     async def restore_active_practice(self) -> Any:
-        """Restore persisted targeted practice into the current session."""
+        """Restore only targeted practice belonging to this session's skill."""
 
         state = await self.get_learner_state()
-
         learner_state = state.get("learner", state)
 
-        self.session.active_practice = learner_state.get(
-            "active_practice"
-        )
+        def skill_key(value: Any) -> str:
+            return (
+                str(value or "")
+                .strip()
+                .casefold()
+                .replace("_", "-")
+                .replace(" ", "-")
+            )
 
-        return self.session.active_practice
+        current_skill_key = skill_key(self.session.skill)
+        practices_by_skill = learner_state.get("active_practices") or {}
+
+        practice = practices_by_skill.get(current_skill_key)
+
+        if practice is None:
+            # Backward compatibility for older states with only one practice.
+            legacy_practice = learner_state.get("active_practice")
+            if (
+                isinstance(legacy_practice, dict)
+                and skill_key(legacy_practice.get("skill"))
+                == current_skill_key
+            ):
+                practice = legacy_practice
+
+        self.session.active_practice = practice
+        return practice
 
     # ============================================================
     # COMPLETE LEARNING CYCLE
@@ -1030,12 +1050,23 @@ class LearningOrchestrator:
 
 
 
-    async def get_learner_profile(self) -> Any:
+    async def get_learner_profile(
+        self,
+        include_all_skills: bool = False,
+    ) -> Any:
         """Return the learner profile without inventing active missions."""
+
+        arguments = {
+            "learner_id": self.session.learner_id,
+        }
+
+        if not include_all_skills:
+            arguments["skill"] = self.session.skill
+            arguments["learner_level"] = self.session.level
 
         result = await self.mcp.call_tool(
             "get_learner_profile",
-            {"learner_id": self.session.learner_id},
+            arguments,
         )
         data = self._extract_result(result)
 

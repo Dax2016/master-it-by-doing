@@ -14,6 +14,9 @@ class LearnerState:
     learner_id: str
     active_mission: dict[str, Any] | None = None
     active_practice: dict[str, Any] | None = None
+    active_missions: dict[str, dict[str, Any]] = field(default_factory=dict)
+    active_practices: dict[str, dict[str, Any]] = field(default_factory=dict)
+    boss_fights: list[dict[str, Any]] = field(default_factory=list)
 
     goals: list[dict] = field(default_factory=list)
     completed_missions: list[dict] = field(default_factory=list)
@@ -171,25 +174,101 @@ class LearnerState:
             "evidence": evidence or {},
         }
 
+    @staticmethod
+    def _skill_key(skill: str | None) -> str:
+        """Normalize skill names so equivalent labels share one state key."""
+        return str(skill or "").strip().casefold().replace("_", "-").replace(" ", "-")
+
+    def get_active_mission(self, skill: str | None = None) -> dict[str, Any] | None:
+        """Return the active mission for a skill, with legacy fallback."""
+        if skill is None:
+            return self.active_mission
+
+        key = self._skill_key(skill)
+        mission = self.active_missions.get(key)
+        if mission is not None:
+            return mission
+
+        if (
+            self.active_mission
+            and self._skill_key(self.active_mission.get("skill")) == key
+        ):
+            return self.active_mission
+        return None
+
     def set_active_mission(self, mission: dict[str, Any], skill: str | None = None) -> None:
-        self.active_mission = {
+        resolved_skill = mission.get("skill") or skill
+        active = {
             "mission_id": mission.get("id") or mission.get("mission_id"),
             "title": mission.get("title"),
             "description": mission.get("description"),
-            "skill": mission.get("skill") or skill,
+            "skill": resolved_skill,
             "status": "in_progress",
         }
+        key = self._skill_key(resolved_skill)
+        if key:
+            self.active_missions[key] = active
+        self.active_mission = active
 
-    def clear_active_mission(self) -> None:
-        self.active_mission = None
+    def clear_active_mission(self, skill: str | None = None) -> None:
+        """Clear one skill's mission, or all missions for legacy callers."""
+        if skill is None:
+            self.active_missions.clear()
+            self.active_mission = None
+            return
 
-    def set_active_practice(self, practice: dict[str, Any]) -> None:
-        """Persist the currently assigned targeted practice exercise."""
+        key = self._skill_key(skill)
+        self.active_missions.pop(key, None)
+        if (
+            self.active_mission
+            and self._skill_key(self.active_mission.get("skill")) == key
+        ):
+            self.active_mission = next(
+                reversed(self.active_missions.values()), None
+            )
+
+    def get_active_practice(self, skill: str | None = None) -> dict[str, Any] | None:
+        """Return the active targeted exercise for a skill."""
+        if skill is None:
+            return self.active_practice
+
+        key = self._skill_key(skill)
+        practice = self.active_practices.get(key)
+        if practice is not None:
+            return practice
+
+        if (
+            self.active_practice
+            and self._skill_key(self.active_practice.get("skill")) == key
+        ):
+            return self.active_practice
+        return None
+
+    def set_active_practice(
+        self, practice: dict[str, Any], skill: str | None = None
+    ) -> None:
+        """Persist targeted practice while preserving the legacy field."""
+        resolved_skill = practice.get("skill") or skill
+        if resolved_skill:
+            self.active_practices[self._skill_key(resolved_skill)] = practice
         self.active_practice = practice
 
-    def clear_active_practice(self) -> None:
-        """Clear the currently assigned targeted practice exercise."""
-        self.active_practice = None
+    def clear_active_practice(self, skill: str | None = None) -> None:
+        """Clear one skill's practice, or all practice for legacy callers."""
+        if skill is None:
+            self.active_practices.clear()
+            self.active_practice = None
+            return
+
+        key = self._skill_key(skill)
+        self.active_practices.pop(key, None)
+        if (
+            self.active_practice
+            and self._skill_key(self.active_practice.get("skill")) == key
+        ):
+            self.active_practice = next(
+                reversed(self.active_practices.values()), None
+            )
 
     def to_dict(self) -> dict:
         """Return the learner state as a serializable dictionary."""
@@ -197,6 +276,9 @@ class LearnerState:
             "learner_id": self.learner_id,
             "active_mission": self.active_mission,
             "active_practice": self.active_practice,
+            "active_missions": self.active_missions,
+            "active_practices": self.active_practices,
+            "boss_fights": self.boss_fights,
             "goals": self.goals,
             "completed_missions": self.completed_missions,
             "attempts": self.attempts,
@@ -291,30 +373,53 @@ class LearnerState:
 
         return list(profiles.values())
 
-    def get_learner_profile(self) -> dict:
-        """
-        Return a read-only projection of the learner's current capability state.
+    def get_learner_profile(
+        self,
+        skill: str | None = None,
+        learner_level: str | None = None,
+    ) -> dict:
+        """Return a read-only profile, optionally scoped to one skill."""
 
-        The profile combines existing learner state without creating or
-        modifying any underlying records.
-        """
+        def normalize(value: Any) -> str:
+            return (
+                str(value or "")
+                .strip()
+                .casefold()
+                .replace("_", "-")
+                .replace(" ", "-")
+            )
 
-        current_goal = self.goals[-1] if self.goals else None
+        current_goal = None
+        for goal in reversed(self.goals):
+            if skill is not None and normalize(goal.get("skill")) != normalize(skill):
+                continue
+            if (
+                learner_level is not None
+                and normalize(goal.get("learner_level")) != normalize(learner_level)
+            ):
+                continue
+            current_goal = goal
+            break
+
+        active_mission = (
+            self.get_active_mission(skill)
+            if skill is not None
+            else self.active_mission
+        )
 
         mastered = []
         developing = []
         needs_practice = []
 
-        for skill, missions in self.mastery.items():
+        for stored_skill, missions in self.mastery.items():
             for mission, mastery in missions.items():
                 entry = {
-                    "skill": skill,
+                    "skill": stored_skill,
                     "mission": mission,
                     **mastery,
                 }
 
                 status = mastery.get("status")
-
                 if status == "mastered":
                     mastered.append(entry)
                 elif status == "needs_practice":
@@ -326,7 +431,9 @@ class LearnerState:
             "learner_id": self.learner_id,
             "current": {
                 "goal": current_goal,
-                "active_mission": self.active_mission,
+                "active_mission": active_mission,
+                "active_missions": self.active_missions,
+                "active_practices": self.active_practices,
             },
             "demonstrated": {
                 "capabilities": self.get_capability_profile(),
@@ -340,7 +447,5 @@ class LearnerState:
             },
             "strengths": self.strengths,
             "weaknesses": self.weaknesses,
-            "next": {
-                "mission": None,
-            },
+            "next": {"mission": None},
         }

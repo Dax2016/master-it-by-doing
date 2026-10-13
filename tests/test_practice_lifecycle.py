@@ -220,3 +220,86 @@ while True:
         )
 
     asyncio.run(run())
+
+def test_active_practice_is_isolated_by_skill():
+    async def run():
+        python_practice = {
+            "skill": "Python",
+            "id": "python-practice",
+        }
+        aws_practice = {
+            "skill": "AWS Cloud",
+            "id": "aws-practice",
+        }
+
+        persisted_state = {
+            "learner": {
+                "active_practice": aws_practice,
+                "active_practices": {
+                    "python": python_practice,
+                    "aws-cloud": aws_practice,
+                },
+            }
+        }
+
+        python_orchestrator = LearningOrchestrator(
+            learner_id="practice-isolation-test",
+            skill="Python",
+            level="beginner",
+        )
+
+        async def get_python_state():
+            return persisted_state
+
+        python_orchestrator.get_learner_state = get_python_state
+
+        restored_python = await python_orchestrator.restore_active_practice()
+
+        assert restored_python == python_practice
+        assert python_orchestrator.session.active_practice == python_practice
+
+        aws_orchestrator = LearningOrchestrator(
+            learner_id="practice-isolation-test",
+            skill="AWS Cloud",
+            level="beginner",
+        )
+
+        async def get_aws_state():
+            return persisted_state
+
+        aws_orchestrator.get_learner_state = get_aws_state
+
+        restored_aws = await aws_orchestrator.restore_active_practice()
+
+        assert restored_aws == aws_practice
+        assert aws_orchestrator.session.active_practice == aws_practice
+
+    asyncio.run(run())
+
+
+def test_legacy_active_practice_requires_matching_skill():
+    async def run():
+        orchestrator = LearningOrchestrator(
+            learner_id="legacy-practice-isolation-test",
+            skill="Python",
+            level="beginner",
+        )
+
+        async def get_state():
+            return {
+                "learner": {
+                    "active_practice": {
+                        "skill": "AWS Cloud",
+                        "id": "aws-practice",
+                    }
+                }
+            }
+
+        orchestrator.get_learner_state = get_state
+
+        restored = await orchestrator.restore_active_practice()
+
+        assert restored is None
+        assert orchestrator.session.active_practice is None
+
+    asyncio.run(run())

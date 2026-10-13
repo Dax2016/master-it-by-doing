@@ -2,6 +2,7 @@ import os
 import uuid
 
 from services.assessment.assessment_service import AssessmentService
+from services.assessment.boss_fight_engine import BossFightEngine
 from mcp.server.fastmcp import FastMCP
 from mcp.server.transport_security import TransportSecuritySettings
 
@@ -56,6 +57,8 @@ def get_learner(
 
 # AI evidence collection plus deterministic mission validation.
 assessment_service = AssessmentService()
+
+boss_fight_engine = BossFightEngine()
 
 
 # ---------------------------------------------------------------------------
@@ -221,7 +224,7 @@ def create_mission(
     # Resume an existing active mission.
     # -----------------------------------------------------------------------
 
-    active_mission = learner.active_mission
+    active_mission = learner.get_active_mission(skill)
 
     if (
         active_mission is not None
@@ -433,7 +436,7 @@ def evaluate_attempt(
     # -----------------------------------------------------------------------
 
     if practice:
-        practice_state = learner.active_practice or {}
+        practice_state = learner.get_active_practice(skill) or {}
         parent_mission_id = practice_state.get("parent_mission_id")
         parent_lookup = get_mission_by_id(parent_mission_id) if parent_mission_id else None
 
@@ -709,6 +712,303 @@ def evaluate_attempt(
         "feedback": final_evaluation["feedback"],
         "evidence_id": evidence["id"],
     }
+
+
+
+# ---------------------------------------------------------------------------
+# BOSS FIGHT LIFECYCLE
+# ---------------------------------------------------------------------------
+
+def _boss_skill_key(value: str) -> str:
+    return str(value).strip().casefold().replace("_", "-").replace(" ", "-")
+
+
+def _resolve_boss_parent(skill: str, parent_mission_id: str):
+    """Resolve a Boss Fight parent by canonical catalog ID and skill."""
+    if not str(skill).strip() or not str(parent_mission_id).strip():
+        return None
+
+    resolved = get_mission_by_id(parent_mission_id)
+    if resolved is None:
+        return None
+
+    canonical_skill, mission = resolved
+    if _boss_skill_key(canonical_skill) != _boss_skill_key(skill):
+        return None
+
+    return canonical_skill, mission
+
+
+@mcp.tool()
+def create_boss_fight(
+    skill: str,
+    parent_mission_id: str,
+    learner_id: str = "demo-learner",
+) -> dict:
+    """Create an independent Boss Fight linked to a catalog mission."""
+    resolved = _resolve_boss_parent(skill, parent_mission_id)
+    if resolved is None:
+        return {
+            "status": "error",
+            "message": "Unknown mission ID or mission does not belong to this skill.",
+        }
+
+    canonical_skill, mission = resolved
+    learner = get_learner(learner_id)
+
+    try:
+        challenge = boss_fight_engine.create_challenge(
+            learner=learner,
+            skill=canonical_skill,
+            parent_mission_id=mission["id"],
+            parent_mission_title=mission["title"],
+        )
+    except (TypeError, ValueError) as exc:
+        return {"status": "error", "message": str(exc)}
+
+    return {"status": "created", "challenge": challenge}
+
+
+@mcp.tool()
+def start_boss_fight(
+    challenge_id: str,
+    skill: str,
+    parent_mission_id: str,
+    learner_id: str = "demo-learner",
+) -> dict:
+    """Start a ready Boss Fight for its owning learner."""
+    resolved = _resolve_boss_parent(skill, parent_mission_id)
+    if resolved is None:
+        return {
+            "status": "error",
+            "message": "Unknown mission ID or mission does not belong to this skill.",
+        }
+
+    canonical_skill, mission = resolved
+    learner = get_learner(learner_id)
+
+    try:
+        challenge = boss_fight_engine.start_challenge(
+            learner,
+            challenge_id,
+            skill=canonical_skill,
+            parent_mission_id=mission["id"],
+        )
+    except ValueError as exc:
+        return {"status": "error", "message": str(exc)}
+
+    return {"status": "started", "challenge": challenge}
+
+
+@mcp.tool()
+def evaluate_boss_fight(
+    challenge_id: str,
+    skill: str,
+    parent_mission_id: str,
+    learner_response: str,
+    attempt_type: str = "text",
+    learner_id: str = "demo-learner",
+) -> dict:
+    """
+    Assess Boss Fight work and record challenge-linked evidence.
+
+    This deliberately does not award capabilities, record parent mission
+    mastery, or advance the ordinary learning mission.
+    """
+    resolved = _resolve_boss_parent(skill, parent_mission_id)
+    if resolved is None:
+        return {
+            "status": "error",
+            "message": "Unknown mission ID or mission does not belong to this skill.",
+        }
+
+    canonical_skill, parent = resolved
+    normalized_type = str(attempt_type).strip().lower()
+    if normalized_type not in {"code", "text", "answer"}:
+        return {
+            "status": "error",
+            "message": "attempt_type must be code, text, or answer.",
+        }
+
+    if not isinstance(learner_response, str) or not learner_response.strip():
+        return {
+            "status": "error",
+            "message": "A non-empty learner response is required.",
+        }
+
+    learner = get_learner(learner_id)
+
+    try:
+        challenge = boss_fight_engine.get_challenge(
+            learner,
+            challenge_id,
+            skill=canonical_skill,
+            parent_mission_id=parent["id"],
+        )
+    except ValueError as exc:
+        return {"status": "error", "message": str(exc)}
+
+    if challenge["status"] != "in_progress":
+        return {
+            "status": "error",
+            "message": "Only an in-progress Boss Fight can be evaluated.",
+        }
+
+    mission_data = {
+        **parent,
+        "id": parent["id"],
+        "skill": canonical_skill,
+        "title": parent["title"],
+        "mission": parent["title"],
+    }
+    attempt_data = {
+        "learner_id": learner.learner_id,
+        "skill": canonical_skill,
+        "mission": parent["title"],
+        "mission_id": parent["id"],
+        "attempt_type": normalized_type,
+        "learner_response": learner_response,
+        "boss_fight_id": challenge_id,
+    }
+
+    try:
+        raw_evaluation = assessment_service.evaluate(
+            mission=mission_data,
+            attempt=attempt_data,
+        )
+    except Exception as exc:
+        return {
+            "status": "error",
+            "message": "Boss Fight assessment failed.",
+            "error_type": type(exc).__name__,
+        }
+
+    if not isinstance(raw_evaluation, dict):
+        return {
+            "status": "error",
+            "message": "Assessment returned an invalid result.",
+        }
+
+    evidence_id = f"evidence-{uuid.uuid4().hex[:12]}"
+    evaluation = {
+        **raw_evaluation,
+        "status": "evaluated",
+        "learner_id": learner.learner_id,
+        "skill": canonical_skill,
+        "mission": parent["title"],
+        "mission_id": parent["id"],
+        "attempt_type": normalized_type,
+        "mastery_status": raw_evaluation.get(
+            "mastery_status",
+            raw_evaluation.get("status", "needs_practice"),
+        ),
+        "boss_fight_id": challenge_id,
+        "evidence_id": evidence_id,
+    }
+
+    # Validate and finalize the challenge before persisting attempt/evidence.
+    try:
+        completed_challenge = boss_fight_engine.record_evaluation(
+            learner,
+            challenge_id,
+            skill=canonical_skill,
+            parent_mission_id=parent["id"],
+            evaluation=evaluation,
+        )
+    except ValueError as exc:
+        return {"status": "error", "message": str(exc)}
+
+    evidence = {
+        "id": evidence_id,
+        "learner_id": learner.learner_id,
+        "skill": canonical_skill,
+        "mission_id": parent["id"],
+        "mission": parent["title"],
+        "attempt_type": normalized_type,
+        "evidence_type": "boss_fight",
+        "boss_fight_id": challenge_id,
+        "score": evaluation["score"],
+        "passed": evaluation["passed"],
+        "passed_criteria": evaluation["passed_criteria"],
+        "total_criteria": evaluation["total_criteria"],
+        "criteria": evaluation.get("criteria", {}),
+        "strengths": evaluation.get("strengths", []),
+        "weaknesses": evaluation.get("weaknesses", []),
+        "feedback": evaluation.get("feedback", ""),
+    }
+
+    learner.add_attempt({
+        **attempt_data,
+        "evaluation": evaluation,
+        "evidence_id": evidence_id,
+    })
+    learner.add_evidence(evidence)
+
+    return {
+        "status": "evaluated",
+        "challenge": completed_challenge,
+        "evaluation": evaluation,
+        "evidence": evidence,
+    }
+
+
+@mcp.tool()
+def get_boss_fight(
+    challenge_id: str,
+    skill: str,
+    parent_mission_id: str,
+    learner_id: str = "demo-learner",
+) -> dict:
+    """Retrieve one Boss Fight owned by the specified learner."""
+    resolved = _resolve_boss_parent(skill, parent_mission_id)
+    if resolved is None:
+        return {
+            "status": "error",
+            "message": "Unknown mission ID or mission does not belong to this skill.",
+        }
+
+    canonical_skill, mission = resolved
+    learner = get_learner(learner_id)
+
+    try:
+        challenge = boss_fight_engine.get_challenge(
+            learner,
+            challenge_id,
+            skill=canonical_skill,
+            parent_mission_id=mission["id"],
+        )
+    except ValueError as exc:
+        return {"status": "error", "message": str(exc)}
+
+    return {"status": "retrieved", "challenge": challenge}
+
+
+@mcp.tool()
+def get_boss_fights(
+    learner_id: str = "demo-learner",
+    skill: str | None = None,
+) -> dict:
+    """List a learner's Boss Fights, optionally filtered by skill."""
+    learner = get_learner(learner_id)
+    challenges = [
+        item
+        for item in learner.boss_fights
+        if (
+            not skill
+            or _boss_skill_key(item.get("skill", ""))
+            == _boss_skill_key(skill)
+        )
+    ]
+
+    # Return detached data so callers cannot mutate stored learner state.
+    from copy import deepcopy
+    return {
+        "status": "retrieved",
+        "learner_id": learner.learner_id,
+        "boss_fights": deepcopy(challenges),
+        "count": len(challenges),
+    }
+
 
 
 # ---------------------------------------------------------------------------
@@ -1192,10 +1492,10 @@ def adapt_learning_mission(
     # -----------------------------------------------------------------------
 
     if practice:
-        active_mission = learner.active_mission
+        active_mission = learner.get_active_mission(skill)
 
         if passed is True:
-            learner.clear_active_practice()
+            learner.clear_active_practice(skill)
 
             return {
                 "status": "adapted",
@@ -1230,6 +1530,7 @@ def adapt_learning_mission(
 
         learner.set_active_practice(
             {
+                "skill": skill,
                 "parent_mission_id": parent_mission_id,
                 "parent_mission": (
                     active_mission.get("title")
@@ -1278,7 +1579,7 @@ def adapt_learning_mission(
     )
 
     if is_mastered:
-        active_mission = learner.active_mission
+        active_mission = learner.get_active_mission(skill)
 
         # Resolve the mission that was actually evaluated.
         current_mission_id = evaluation.get(
@@ -1331,7 +1632,7 @@ def adapt_learning_mission(
         # Clear the active mission now that it has been mastered.
         # ---------------------------------------------------------------
 
-        learner.clear_active_mission()
+        learner.clear_active_mission(skill)
 
         # ---------------------------------------------------------------
         # Find the next mission.
@@ -1396,7 +1697,7 @@ def adapt_learning_mission(
     # -----------------------------------------------------------------------
 
     # The learner remains on the current mission until mastery is achieved.
-    active_mission = learner.active_mission
+    active_mission = learner.get_active_mission(skill)
 
     targeted_exercise = generate_targeted_exercise(
         skill=skill,
@@ -1411,6 +1712,7 @@ def adapt_learning_mission(
 
     learner.set_active_practice(
         {
+            "skill": skill,
             "parent_mission_id": parent_mission_id,
             "parent_mission": (
                 active_mission.get("title")
@@ -1555,16 +1857,21 @@ def _recommend_next_mission(
 @mcp.tool()
 def get_learner_profile(
     learner_id: str = "demo-learner",
+    skill: str | None = None,
+    learner_level: str | None = None,
     practice: bool = False,
 ) -> dict:
-    """Return the learner's complete capability and learning profile."""
+    """Return the learner's complete or skill-scoped profile."""
 
     learner = get_learner(learner_id)
 
     return {
         "status": "success",
         "learner_id": learner.learner_id,
-        "profile": learner.get_learner_profile(),
+        "profile": learner.get_learner_profile(
+            skill=skill,
+            learner_level=learner_level,
+        ),
     }
 
 

@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 
 interface MissionDetails {
@@ -10,6 +10,7 @@ interface MissionDetails {
 
 interface LearnerRecord {
   learner_id: string
+  active_mission?: Record<string, unknown> | null
   goals: Record<string, unknown>[]
   completed_missions: Record<string, unknown>[]
   attempts: Record<string, unknown>[]
@@ -43,6 +44,7 @@ interface LearningState {
   skill: string
   level: string
   goal: Record<string, unknown> | null
+  active_mission?: Record<string, unknown> | null
   mission: MissionDetails | null
   latest_attempt: Record<string, unknown> | null
   attempt_text: string | null
@@ -84,8 +86,13 @@ export default function Dashboard() {
   const [learningPaths, setLearningPaths] =
     useState<LearningPath[]>([])
 
+  const [evidenceRecords, setEvidenceRecords] =
+    useState<Record<string, unknown>[]>([])
+
   const [selectedPath, setSelectedPath] =
     useState('python')
+
+  const initialPathResolved = useRef(false)
 
 
   const [pathsLoading, setPathsLoading] = useState(true)
@@ -94,6 +101,9 @@ export default function Dashboard() {
   const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
+    const controller = new AbortController()
+    let cancelled = false
+
     async function loadLearningState() {
       try {
         setLoading(true)
@@ -111,11 +121,47 @@ export default function Dashboard() {
         const pathsData: LearningPathsResponse =
           await pathsResponse.json()
 
-        setLearningPaths(pathsData.paths ?? [])
+        const availablePaths = pathsData.paths ?? []
+        setLearningPaths(availablePaths)
         setPathsLoading(false)
 
+        if (!initialPathResolved.current) {
+          const profileResponse = await fetch(
+            `${API_BASE_URL}/api/learning/profile?learner_id=demo-learner&all_skills=true`,
+            { signal: controller.signal },
+          )
+
+          if (!profileResponse.ok) {
+            throw new Error(
+              `Learner profile service returned HTTP ${profileResponse.status}`,
+            )
+          }
+
+          const initialProfileData: LearningProfileResponse =
+            await profileResponse.json()
+
+          const savedGoalSkill =
+            initialProfileData.profile?.current?.goal?.skill
+
+          const savedGoalPath =
+            typeof savedGoalSkill === 'string'
+              ? availablePaths.find(
+                  (path) => path.skill === savedGoalSkill,
+                )
+              : undefined
+
+          initialPathResolved.current = true
+
+          if (savedGoalPath && savedGoalPath.skill !== selectedPath) {
+            setSelectedPath(savedGoalPath.skill)
+            return
+          }
+        }
+
         const response = await fetch(
-          `${API_BASE_URL}/api/learning/state?learner_id=demo-learner&skill=${encodeURIComponent(selectedPath)}&level=beginner`,     )
+          `${API_BASE_URL}/api/learning/state?learner_id=demo-learner&skill=${encodeURIComponent(selectedPath)}&level=beginner`,
+          { signal: controller.signal },
+        )
 
         if (!response.ok) {
           throw new Error(
@@ -128,6 +174,7 @@ export default function Dashboard() {
 
         const profileResponse = await fetch(
           `${API_BASE_URL}/api/learning/profile?learner_id=demo-learner&skill=${encodeURIComponent(selectedPath)}&level=beginner`,
+          { signal: controller.signal },
         )
 
         if (!profileResponse.ok) {
@@ -145,6 +192,8 @@ export default function Dashboard() {
           )
         }
 
+        if (cancelled) return
+
         setLearnerProfile(profileData.profile)
 
         const learner = data.state?.learner
@@ -155,17 +204,45 @@ export default function Dashboard() {
           )
         }
 
-        const goals = learner.goals ?? []
+        const goals = Array.isArray(learner.goals)
+          ? learner.goals
+          : []
         const attempts = learner.attempts ?? []
         const weaknesses = learner.weaknesses ?? []
+
+        const normalizeSkillKey = (value: unknown) =>
+          typeof value === 'string'
+            ? value.trim().toLowerCase().replace(/[_\s]+/g, '-')
+            : ''
+
+        const evidence = Array.isArray(learner.evidence)
+          ? learner.evidence
+          : []
+
+        setEvidenceRecords(
+          evidence.filter(
+            (record) =>
+              normalizeSkillKey(record?.skill) ===
+              normalizeSkillKey(selectedPath),
+          ),
+        )
+
+        const matchingGoal = [...goals].reverse().find(
+          (goal) =>
+            normalizeSkillKey(goal?.skill) ===
+              normalizeSkillKey(selectedPath) &&
+            normalizeSkillKey(goal?.learner_level) === 'beginner',
+        )
+
+        const selectedGoal =
+          profileData.profile.current?.goal ?? matchingGoal ?? null
 
         setLearningState({
           learner_id: learner.learner_id,
           skill: data.skill,
           level: data.level,
-          goal: goals.length > 0
-            ? goals[goals.length - 1]
-            : null,
+          goal: selectedGoal,
+          active_mission: learner.active_mission ?? null,
           mission: null,
           latest_attempt:
             attempts.length > 0
@@ -183,6 +260,12 @@ export default function Dashboard() {
               : 'continue_learning',
         })
       } catch (err) {
+        if (cancelled) return
+
+        if (err instanceof DOMException && err.name === 'AbortError') {
+          return
+        }
+
         console.error(
           'Failed to load learner state:',
           err,
@@ -194,12 +277,17 @@ export default function Dashboard() {
             : 'Unable to load your learning journey.',
         )
       } finally {
-        setLoading(false)
+        if (!cancelled) setLoading(false)
       }
     }
 
-    loadLearningState()
-      }, [selectedPath])
+    void loadLearningState()
+
+    return () => {
+      cancelled = true
+      controller.abort()
+    }
+  }, [selectedPath])
 
   async function startLearningJourney() {
     try {
@@ -276,8 +364,40 @@ export default function Dashboard() {
     learningState?.goal !== null &&
     learningState?.goal !== undefined
 
-  const activeMission =
+  const stateGoalSkill = learningState?.goal?.skill
+  const profileGoalSkill = learnerProfile?.current?.goal?.skill
+
+  const currentGoalSkill =
+    typeof stateGoalSkill === 'string'
+      ? stateGoalSkill
+      : typeof profileGoalSkill === 'string'
+        ? profileGoalSkill
+        : learningState?.skill
+
+  const normalizeSkill = (value: unknown): string =>
+    typeof value === 'string'
+      ? value.trim().toLowerCase().replace(/[_\s]+/g, '-')
+      : ''
+
+  const selectedSkillKey = normalizeSkill(selectedPath)
+  const missionsBySkill = learnerProfile?.current?.active_missions
+  const skillMission = missionsBySkill?.[selectedSkillKey] ?? null
+
+  const profileActiveMission =
     learnerProfile?.current?.active_mission
+
+  const stateActiveMission = learningState?.active_mission
+
+  const activeMissionCandidate =
+    skillMission ??
+    (normalizeSkill(profileActiveMission?.skill) === selectedSkillKey
+      ? profileActiveMission
+      : null) ??
+    (normalizeSkill(stateActiveMission?.skill) === selectedSkillKey
+      ? stateActiveMission
+      : null)
+
+  const activeMission = activeMissionCandidate
 
   const activeMissionId =
     typeof activeMission?.mission_id === 'string'
@@ -395,11 +515,9 @@ export default function Dashboard() {
                   <span>Current goal</span>
 
                   <h2>
-                    {learningState.skill
-                      ? learningState.skill
-                          .charAt(0)
-                          .toUpperCase() +
-                        learningState.skill.slice(1)
+                    {currentGoalSkill
+                      ? currentGoalSkill.charAt(0).toUpperCase() +
+                        currentGoalSkill.slice(1)
                       : 'Learning goal'}
                   </h2>
 
@@ -462,6 +580,117 @@ export default function Dashboard() {
                   )}
                 </div>
               </div>
+
+              <section className="evidence-portfolio-section">
+                <div className="evidence-portfolio-header">
+                  <div>
+                    <span className="eyebrow">
+                      PROOF OF PROGRESS
+                    </span>
+                    <h2>Your Evidence Portfolio</h2>
+                    <p>
+                      Evaluated work and demonstrated results for this learning path.
+                    </p>
+                  </div>
+                  <strong className="evidence-count">
+                    {evidenceRecords.length} {evidenceRecords.length === 1 ? 'record' : 'records'}
+                  </strong>
+                </div>
+
+                {evidenceRecords.length === 0 ? (
+                  <div className="dashboard-card evidence-empty-state">
+                    <h3>No evidence recorded yet</h3>
+                    <p>
+                      Complete and submit a mission or evaluate a Boss Fight to build your portfolio for this skill.
+                    </p>
+                  </div>
+                ) : (
+                  <div className="evidence-grid">
+                    {evidenceRecords.map((record, index) => {
+                      const title =
+                        typeof record.mission === 'string'
+                          ? record.mission
+                          : typeof record.mission_id === 'string'
+                            ? record.mission_id
+                            : 'Practical evidence'
+                      const score =
+                        typeof record.score === 'number'
+                          ? record.score
+                          : null
+                      const passed =
+                        record.passed === true
+                          ? 'Passed'
+                          : record.passed === false
+                            ? 'Needs more practice'
+                            : 'Result unavailable'
+                      const statusClass =
+                        record.passed === true
+                          ? 'passed'
+                          : record.passed === false
+                            ? 'needs-practice'
+                            : 'unknown'
+                      const passedCriteria =
+                        typeof record.passed_criteria === 'number'
+                          ? record.passed_criteria
+                          : null
+                      const totalCriteria =
+                        typeof record.total_criteria === 'number'
+                          ? record.total_criteria
+                          : null
+                      const feedback =
+                        typeof record.feedback === 'string'
+                          ? record.feedback
+                          : ''
+                      const sourceLabel =
+                        record.evidence_type === 'boss_fight'
+                          ? 'Boss Fight'
+                          : 'Mission evidence'
+                      const recordKey =
+                        typeof record.id === 'string'
+                          ? record.id
+                          : `${title}-${index}`
+
+                      return (
+                        <article className="evidence-card" key={recordKey}>
+                          <div className="evidence-card-topline">
+                            <span className="evidence-source">
+                              {sourceLabel}
+                            </span>
+                            <span className={`evidence-status ${statusClass}`}>
+                              {passed}
+                            </span>
+                          </div>
+
+                          <h3>{title}</h3>
+
+                          <div className="evidence-result-row">
+                            <div>
+                              <span className="evidence-label">Score</span>
+                              <strong className="evidence-score">
+                                {score !== null ? `${score}%` : '?'}
+                              </strong>
+                            </div>
+                            {passedCriteria !== null && totalCriteria !== null && (
+                              <div>
+                                <span className="evidence-label">Criteria met</span>
+                                <strong className="evidence-criteria">
+                                  {passedCriteria} / {totalCriteria}
+                                </strong>
+                              </div>
+                            )}
+                          </div>
+
+                          {feedback && (
+                            <p className="evidence-feedback">
+                              {feedback}
+                            </p>
+                          )}
+                        </article>
+                      )
+                    })}
+                  </div>
+                )}
+              </section>
 
               <section className="learning-paths-section">
                 <div>
@@ -534,6 +763,8 @@ interface LearnerProfile {
   current: {
     goal: Record<string, unknown> | null
     active_mission: Record<string, unknown> | null
+    active_missions?: Record<string, Record<string, unknown>>
+    active_practices?: Record<string, Record<string, unknown>>
   }
   demonstrated: {
     capabilities: Record<string, unknown>[]

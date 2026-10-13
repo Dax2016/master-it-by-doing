@@ -489,6 +489,7 @@ async def get_learning_profile(
     learner_id: str = "demo-learner",
     skill: str = "python",
     level: str = "beginner",
+    all_skills: bool = False,
 ) -> dict:
     """
     Return the learner's complete capability and learning profile.
@@ -504,7 +505,9 @@ async def get_learning_profile(
     )
 
     try:
-        profile_result = await orchestrator.get_learner_profile()
+        profile_result = await orchestrator.get_learner_profile(
+            include_all_skills=all_skills,
+        )
 
     except ValueError as exc:
         raise HTTPException(

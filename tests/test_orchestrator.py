@@ -333,6 +333,8 @@ def test_orchestrator_gets_learner_profile():
             assert tool_name == "get_learner_profile"
             assert arguments == {
                 "learner_id": "learner-profile-test",
+                "skill": "Python",
+                "learner_level": "beginner",
             }
 
             class Result:
