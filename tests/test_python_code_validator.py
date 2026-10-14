@@ -206,3 +206,38 @@ print(calculate_total())
 
     assert result["syntax_valid"] is True
     assert result["criteria"]["total_expense_function"] is False
+
+def test_expense_tracker_accepts_dictionary_based_total_calculation():
+    code = """
+expenses = []
+
+def add_expense(expense):
+    expenses.append(expense)
+
+def calculate_total(expenses):
+    total = 0.0
+    for expense in expenses:
+        total += float(expense["amount"])
+    return total
+
+def display_expenses():
+    for expense in expenses:
+        print(expense["name"], expense["amount"])
+
+add_expense({"name": "Food", "amount": 25.50})
+add_expense({"name": "Transport", "amount": 15.00})
+display_expenses()
+print(calculate_total(expenses))
+"""
+
+    result = PythonCodeValidator.validate(
+        code,
+        mission="Build a Function-Based Expense Tracker",
+    )
+
+    assert result["syntax_valid"] is True
+    assert result["criteria"]["expense_storage"] is True
+    assert result["criteria"]["add_expense_function"] is True
+    assert result["criteria"]["total_expense_function"] is True
+    assert result["criteria"]["multiple_expenses"] is True
+    assert result["criteria"]["expense_summary"] is True

@@ -12,8 +12,11 @@ class AlexaLearningAssistant:
     The MCP server handles the learning logic.
     """
 
-    def __init__(self) -> None:
+    def __init__(self, learner_id: str = "demo-learner") -> None:
         self.client = MCPLearningClient()
+        self.learner_id = learner_id.strip()
+        if not self.learner_id:
+            raise ValueError("learner_id must not be empty.")
 
     async def start_learning(
         self,
@@ -25,16 +28,18 @@ class AlexaLearningAssistant:
         goal_result = await self.client.call_tool(
             "create_learning_goal",
             {
-                "skill": skill,
+                "skill": skill.strip().lower(),
                 "learner_level": learner_level,
+                "learner_id": self.learner_id,
             },
         )
 
         mission_result = await self.client.call_tool(
             "create_mission",
             {
-                "skill": skill,
+                "skill": skill.strip().lower(),
                 "learner_level": learner_level,
+                "learner_id": self.learner_id,
             },
         )
 

@@ -19,16 +19,25 @@ class LearningConversation:
         self,
         skill: str,
         learner_level: str = "beginner",
+        learner_id: str = "demo-learner",
     ) -> None:
         self.client = MCPLearningClient()
 
-        self.skill = skill
+        self.skill = skill.strip().lower()
         self.learner_level = learner_level
+        self.learner_id = learner_id.strip()
+
+        if not self.learner_id:
+            raise ValueError("learner_id must not be empty.")
 
         self.goal: dict[str, Any] | None = None
         self.mission: dict[str, Any] | None = None
         self.attempt: dict[str, Any] | None = None
         self.evaluation: dict[str, Any] | None = None
+
+        # Boss Fight state is deliberately separate from normal evaluation.
+        self.boss_fight: dict[str, Any] | None = None
+        self.boss_fight_evaluation: dict[str, Any] | None = None
 
     # =========================================================
     # STATE 1 — START LEARNING
@@ -42,6 +51,7 @@ class LearningConversation:
             {
                 "skill": self.skill,
                 "learner_level": self.learner_level,
+                "learner_id": self.learner_id,
             },
         )
 
@@ -57,6 +67,7 @@ class LearningConversation:
             {
                 "skill": self.skill,
                 "learner_level": self.learner_level,
+                "learner_id": self.learner_id,
             },
         )
 
@@ -120,6 +131,7 @@ class LearningConversation:
                 "mission": mission_text,
                 "learner_response": learner_response,
                 "attempt_type": attempt_type,
+                "learner_id": self.learner_id,
             },
         )
 
@@ -167,6 +179,7 @@ class LearningConversation:
                 "mission": mission_text,
                 "learner_response": learner_response,
                 "attempt_type": attempt_type,
+                "learner_id": self.learner_id,
             },
         )
 
@@ -224,6 +237,7 @@ class LearningConversation:
                 {
                     "skill": self.skill,
                     "evaluation": self.evaluation,
+                    "learner_id": self.learner_id,
                 },
             )
 
@@ -316,6 +330,7 @@ class LearningConversation:
             {
                 "skill": self.skill,
                 "evaluation": self.evaluation,
+                "learner_id": self.learner_id,
             },
         )
 
@@ -340,6 +355,152 @@ class LearningConversation:
         }
 
     # =========================================================
+    # BOSS FIGHT — INDEPENDENT CHALLENGE AND EVIDENCE
+    # =========================================================
+
+    def _boss_parent_mission_id(
+        self,
+        parent_mission_id: str | None = None,
+    ) -> str:
+        """Resolve the canonical catalog mission ID for a Boss Fight."""
+        mission_id = parent_mission_id
+
+        if mission_id is None and self.mission:
+            mission_id = self.mission.get("id")
+
+        if not isinstance(mission_id, str) or not mission_id.strip():
+            raise RuntimeError(
+                "A canonical parent_mission_id is required. "
+                "Start learning with a catalog mission first."
+            )
+
+        return mission_id.strip()
+
+    async def create_boss_fight(
+        self,
+        parent_mission_id: str | None = None,
+    ) -> dict[str, Any]:
+        """Create a Boss Fight linked to the active catalog mission."""
+        mission_id = self._boss_parent_mission_id(parent_mission_id)
+
+        result = await self.client.call_tool(
+            "create_boss_fight",
+            {
+                "skill": self.skill,
+                "parent_mission_id": mission_id,
+                "learner_id": self.learner_id,
+            },
+        )
+        payload = self._extract_json(result)
+        self._raise_if_error(result, "create_boss_fight")
+        self._raise_for_tool_status(payload, "create_boss_fight")
+
+        self.boss_fight = payload.get("challenge")
+        self.boss_fight_evaluation = None
+        return payload
+
+    async def start_boss_fight(
+        self,
+        challenge_id: str,
+        parent_mission_id: str | None = None,
+    ) -> dict[str, Any]:
+        """Start a Boss Fight belonging to this learner and mission."""
+        mission_id = self._boss_parent_mission_id(parent_mission_id)
+
+        result = await self.client.call_tool(
+            "start_boss_fight",
+            {
+                "challenge_id": challenge_id,
+                "skill": self.skill,
+                "parent_mission_id": mission_id,
+                "learner_id": self.learner_id,
+            },
+        )
+        payload = self._extract_json(result)
+        self._raise_if_error(result, "start_boss_fight")
+        self._raise_for_tool_status(payload, "start_boss_fight")
+
+        self.boss_fight = payload.get("challenge")
+        return payload
+
+    async def evaluate_boss_fight(
+        self,
+        challenge_id: str,
+        learner_response: str,
+        parent_mission_id: str | None = None,
+        attempt_type: str = "text",
+    ) -> dict[str, Any]:
+        """Evaluate Boss Fight work without overwriting normal evaluation."""
+        mission_id = self._boss_parent_mission_id(parent_mission_id)
+
+        result = await self.client.call_tool(
+            "evaluate_boss_fight",
+            {
+                "challenge_id": challenge_id,
+                "skill": self.skill,
+                "parent_mission_id": mission_id,
+                "learner_response": learner_response,
+                "attempt_type": attempt_type,
+                "learner_id": self.learner_id,
+            },
+        )
+        payload = self._extract_json(result)
+        self._raise_if_error(result, "evaluate_boss_fight")
+        self._raise_for_tool_status(payload, "evaluate_boss_fight")
+
+        self.boss_fight = payload.get("challenge")
+        self.boss_fight_evaluation = payload.get("evaluation")
+        return payload
+
+    async def get_boss_fight(
+        self,
+        challenge_id: str,
+        parent_mission_id: str | None = None,
+    ) -> dict[str, Any]:
+        """Retrieve a Boss Fight owned by this learner."""
+        mission_id = self._boss_parent_mission_id(parent_mission_id)
+
+        result = await self.client.call_tool(
+            "get_boss_fight",
+            {
+                "challenge_id": challenge_id,
+                "skill": self.skill,
+                "parent_mission_id": mission_id,
+                "learner_id": self.learner_id,
+            },
+        )
+        payload = self._extract_json(result)
+        self._raise_if_error(result, "get_boss_fight")
+        self._raise_for_tool_status(payload, "get_boss_fight")
+
+        self.boss_fight = payload.get("challenge")
+        return payload
+
+    async def get_boss_fights(self) -> dict[str, Any]:
+        """List this learner's Boss Fights for the current skill."""
+        result = await self.client.call_tool(
+            "get_boss_fights",
+            {
+                "learner_id": self.learner_id,
+                "skill": self.skill,
+            },
+        )
+        payload = self._extract_json(result)
+        self._raise_if_error(result, "get_boss_fights")
+        self._raise_for_tool_status(payload, "get_boss_fights")
+        return payload
+
+    @staticmethod
+    def _raise_for_tool_status(
+        payload: dict[str, Any],
+        tool_name: str,
+    ) -> None:
+        """Raise for MCP tools that encode failures in JSON status."""
+        if payload.get("status") == "error":
+            message = payload.get("message", "Unknown tool error.")
+            raise RuntimeError(f"MCP tool '{tool_name}' failed: {message}")
+
+    # =========================================================
     # STATE 5 — LEARNER STATE
     # =========================================================
 
@@ -348,7 +509,7 @@ class LearningConversation:
 
         result = await self.client.call_tool(
             "get_learner_state",
-            {},
+            {"learner_id": self.learner_id},
         )
 
         self._raise_if_error(

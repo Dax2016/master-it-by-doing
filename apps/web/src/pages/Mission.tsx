@@ -89,6 +89,26 @@ type AttemptResponse = {
 }
 
 
+type BossFightChallenge = {
+  id: string
+  status: string
+  parent_mission_title?: string
+  evaluation?: Record<string, unknown> | null
+  challenge_brief?: {
+    instructions?: string
+    skills?: string[]
+    criteria?: { id?: string; name?: string }[]
+  }
+}
+
+type BossFightApiResponse = {
+  status?: string
+  challenge?: BossFightChallenge
+  evaluation?: Record<string, unknown>
+  detail?: unknown
+  message?: string
+}
+
 type VoiceReaction = {
   emoji: string
   title: string
@@ -164,6 +184,16 @@ export default function Mission() {
     useState(false)
 
   const [error, setError] = useState('')
+
+  const [bossFight, setBossFight] =
+    useState<BossFightChallenge | null>(null)
+  const [bossFightResponse, setBossFightResponse] = useState('')
+  const [bossFightEvaluation, setBossFightEvaluation] =
+    useState<Record<string, unknown> | null>(null)
+  const [bossFightBusy, setBossFightBusy] = useState(false)
+  const [bossFightError, setBossFightError] = useState('')
+  const [bossFightAttemptType, setBossFightAttemptType] =
+    useState<'code' | 'text' | 'answer'>('code')
 
   const [voiceEnabled, setVoiceEnabled] = useState(true)
   const [voiceReaction, setVoiceReaction] =
@@ -294,6 +324,11 @@ function announceReaction(reaction: VoiceReaction) {
         setError('')
         setAttempt('')
         setEvaluation(null)
+        setBossFight(null)
+        setBossFightResponse('')
+        setBossFightEvaluation(null)
+        setBossFightError('')
+        setBossFightAttemptType('code')
 
         if (!missionId) {
           throw new Error(
@@ -598,6 +633,148 @@ announceReaction(reaction)
           : evaluation
             ? 'Evaluation complete'
             : 'Mission in progress'
+
+  const bossFightBasePayload = () => ({
+    learner_id: learningState?.learner_id ?? 'demo-learner',
+    skill: mission?.skill ?? 'python',
+    parent_mission_id: mission?.id ?? '',
+  })
+
+  const requestBossFight = async (
+    path: string,
+    method: 'GET' | 'POST',
+    body?: Record<string, unknown>,
+  ): Promise<BossFightApiResponse> => {
+    const response = await fetch(
+      `http://127.0.0.1:8001${path}`,
+      {
+        method,
+        headers: { 'Content-Type': 'application/json' },
+        ...(body ? { body: JSON.stringify(body) } : {}),
+      },
+    )
+
+    const payload = await response.json() as BossFightApiResponse
+
+    if (!response.ok) {
+      const detail = payload.detail
+      const message =
+        typeof detail === 'string'
+          ? detail
+          : detail && typeof detail === 'object' &&
+              'message' in detail &&
+              typeof detail.message === 'string'
+            ? detail.message
+            : payload.message
+
+      throw new Error(
+        message ?? `Boss Fight request failed (${response.status}).`,
+      )
+    }
+
+    return payload
+  }
+
+  const createBossFight = async () => {
+    if (!mission || bossFightBusy) return
+
+    setBossFightBusy(true)
+    setBossFightError('')
+    setBossFightEvaluation(null)
+    setBossFightResponse('')
+
+    try {
+      const payload = await requestBossFight(
+        '/api/boss-fights',
+        'POST',
+        bossFightBasePayload(),
+      )
+
+      if (!payload.challenge) {
+        throw new Error('The server did not return a Boss Fight challenge.')
+      }
+
+      setBossFight(payload.challenge)
+    } catch (requestError) {
+      setBossFightError(
+        requestError instanceof Error
+          ? requestError.message
+          : 'Could not create the Boss Fight.',
+      )
+    } finally {
+      setBossFightBusy(false)
+    }
+  }
+
+  const startBossFight = async () => {
+    if (!mission || !bossFight || bossFightBusy) return
+
+    setBossFightBusy(true)
+    setBossFightError('')
+
+    try {
+      const payload = await requestBossFight(
+        `/api/boss-fights/${encodeURIComponent(bossFight.id)}/start`,
+        'POST',
+        bossFightBasePayload(),
+      )
+
+      if (!payload.challenge) {
+        throw new Error('The server did not return the started challenge.')
+      }
+
+      setBossFight(payload.challenge)
+    } catch (requestError) {
+      setBossFightError(
+        requestError instanceof Error
+          ? requestError.message
+          : 'Could not start the Boss Fight.',
+      )
+    } finally {
+      setBossFightBusy(false)
+    }
+  }
+
+  const evaluateBossFight = async () => {
+    if (
+      !mission ||
+      !bossFight ||
+      !bossFightResponse.trim() ||
+      bossFightBusy
+    ) {
+      return
+    }
+
+    setBossFightBusy(true)
+    setBossFightError('')
+
+    try {
+      const payload = await requestBossFight(
+        `/api/boss-fights/${encodeURIComponent(bossFight.id)}/evaluate`,
+        'POST',
+        {
+          ...bossFightBasePayload(),
+          learner_response: bossFightResponse.trim(),
+          attempt_type: bossFightAttemptType,
+        },
+      )
+
+      if (!payload.challenge || !payload.evaluation) {
+        throw new Error('The server returned an incomplete evaluation.')
+      }
+
+      setBossFight(payload.challenge)
+      setBossFightEvaluation(payload.evaluation)
+    } catch (requestError) {
+      setBossFightError(
+        requestError instanceof Error
+          ? requestError.message
+          : 'Could not evaluate the Boss Fight.',
+      )
+    } finally {
+      setBossFightBusy(false)
+    }
+  }
 
   return (
     <main className="mission-page">
@@ -1275,6 +1452,212 @@ announceReaction(reaction)
           </section>
         </>
       )}
+      {!isLoadingMission && mission && (
+        <section className="boss-fight-card" aria-labelledby="boss-fight-title">
+          <div className="boss-fight-header">
+            <div>
+              <span className="boss-fight-eyebrow">INDEPENDENT SKILL CHECK</span>
+              <h2 id="boss-fight-title">Boss Fight</h2>
+              <p>
+                Prove what you can do with a practical assessment based on
+                your current mission. This assessment is tracked separately
+                from your normal mission progress.
+              </p>
+            </div>
+            {bossFight && (
+              <span className={`boss-fight-status boss-fight-status-${bossFight.status}`}>
+                {bossFight.status.replaceAll('_', ' ')}
+              </span>
+            )}
+          </div>
+
+          <div className="boss-fight-context">
+            <span className="boss-fight-label">MISSION CONTEXT</span>
+            <h3>{mission.title}</h3>
+            <p>{mission.mission || mission.description}</p>
+          </div>
+
+          {bossFight?.challenge_brief && (
+            <section className="boss-fight-brief" aria-labelledby="boss-fight-brief-title">
+              <div className="boss-fight-brief-heading">
+                <span className="boss-fight-label">CHALLENGE BRIEF</span>
+                <span className="boss-fight-id">ID: {bossFight.id}</span>
+              </div>
+
+              <h3 id="boss-fight-brief-title">Your task</h3>
+              <p className="boss-fight-brief-instructions">
+                {bossFight.challenge_brief.instructions || 'Complete the mission challenge and demonstrate your solution.'}
+              </p>
+
+              {!!bossFight.challenge_brief.skills?.length && (
+                <div className="boss-fight-brief-section">
+                  <h4>Skills to demonstrate</h4>
+                  <ul className="boss-fight-brief-skills">
+                    {bossFight.challenge_brief.skills.map((skill) => (
+                      <li key={skill}>{skill}</li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+
+              {!!bossFight.challenge_brief.criteria?.length && (
+                <div className="boss-fight-brief-section">
+                  <h4>Acceptance criteria</h4>
+                  <ul className="boss-fight-brief-criteria">
+                    {bossFight.challenge_brief.criteria.map((criterion, index) => (
+                      <li key={criterion.id || `${criterion.name || 'criterion'}-${index}`}>
+                        <span className="boss-fight-criterion-marker" aria-hidden="true">?</span>
+                        <span>{criterion.name || criterion.id || 'Complete the required criterion'}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+            </section>
+          )}
+
+          {bossFightError && (
+            <p className="boss-fight-error" role="alert">
+              {bossFightError}
+            </p>
+          )}
+
+          {!bossFight && (
+            <button
+              type="button"
+              className="boss-fight-primary"
+              onClick={createBossFight}
+              disabled={bossFightBusy}
+            >
+              {bossFightBusy ? 'Preparing challenge…' : 'Create Boss Fight'}
+            </button>
+          )}
+
+          {bossFight?.status === 'ready' && (
+            <div className="boss-fight-actions">
+              <p>Your challenge is ready. Start when you are prepared.</p>
+              <button
+                type="button"
+                className="boss-fight-primary"
+                onClick={startBossFight}
+                disabled={bossFightBusy}
+              >
+                {bossFightBusy ? 'Starting…' : 'Start Challenge'}
+              </button>
+            </div>
+          )}
+
+          {bossFight?.status === 'in_progress' && (
+            <div className="boss-fight-workspace">
+              <label htmlFor="boss-fight-attempt-type">Submission type</label>
+              <select
+                id="boss-fight-attempt-type"
+                value={bossFightAttemptType}
+                onChange={(event) => setBossFightAttemptType(
+                  event.target.value as 'code' | 'text' | 'answer',
+                )}
+                disabled={bossFightBusy}
+              >
+                <option value="code">Code / implementation</option>
+                <option value="text">Written explanation</option>
+                <option value="answer">Short answer</option>
+              </select>
+
+              <label htmlFor="boss-fight-response">Your solution and evidence</label>
+              <textarea
+                id="boss-fight-response"
+                value={bossFightResponse}
+                onChange={(event) => setBossFightResponse(event.target.value)}
+                placeholder="Describe or paste your solution. Include enough detail to demonstrate your reasoning and the result."
+                rows={9}
+                disabled={bossFightBusy}
+              />
+
+              <button
+                type="button"
+                className="boss-fight-primary"
+                onClick={evaluateBossFight}
+                disabled={bossFightBusy || !bossFightResponse.trim()}
+              >
+                {bossFightBusy ? 'Evaluating…' : 'Submit for Evaluation'}
+              </button>
+            </div>
+          )}
+
+          {bossFightEvaluation && (
+            <div className="boss-fight-result" aria-live="polite">
+              <div className="boss-fight-score">
+                <span className="boss-fight-label">YOUR SCORE</span>
+                <strong>
+                  {typeof bossFightEvaluation.score === 'number'
+                    ? `${bossFightEvaluation.score}%`
+                    : 'Evaluated'}
+                </strong>
+                <span>
+                  {bossFightEvaluation.passed === true
+                    ? 'Challenge passed'
+                    : bossFightEvaluation.passed === false
+                      ? 'More practice needed'
+                      : 'Evaluation complete'}
+                </span>
+              </div>
+
+              {typeof bossFightEvaluation.feedback === 'string' && (
+                <p>{bossFightEvaluation.feedback}</p>
+              )}
+
+              {Array.isArray(bossFightEvaluation.strengths) &&
+                bossFightEvaluation.strengths.some(
+                  (item) => typeof item === 'string',
+                ) && (
+                  <div>
+                    <h3>What you did well</h3>
+                    <ul>
+                      {bossFightEvaluation.strengths.map((item, index) =>
+                        typeof item === 'string'
+                          ? <li key={index}>{item}</li>
+                          : null,
+                      )}
+                    </ul>
+                  </div>
+                )}
+
+              {Array.isArray(bossFightEvaluation.weaknesses) &&
+                bossFightEvaluation.weaknesses.some(
+                  (item) => typeof item === 'string',
+                ) && (
+                  <div>
+                    <h3>Areas to strengthen</h3>
+                    <ul>
+                      {bossFightEvaluation.weaknesses.map((item, index) =>
+                        typeof item === 'string'
+                          ? <li key={index}>{item}</li>
+                          : null,
+                      )}
+                    </ul>
+                  </div>
+                )}
+
+              <p className="boss-fight-note">
+                This result is recorded independently. Your parent mission
+                status has not been automatically changed.
+              </p>
+            </div>
+          )}
+
+          {(bossFight?.status === 'passed' || bossFight?.status === 'failed') && (
+            <button
+              type="button"
+              className="boss-fight-secondary"
+              onClick={createBossFight}
+              disabled={bossFightBusy}
+            >
+              {bossFightBusy ? 'Preparing…' : 'Try a New Boss Fight'}
+            </button>
+          )}
+        </section>
+      )}
+
     </main>
   )
 }

@@ -23,6 +23,7 @@ class BossFightEngine:
         skill: str,
         parent_mission_id: str,
         parent_mission_title: str | None = None,
+        challenge_brief: dict | None = None,
     ) -> dict:
         if not str(skill).strip():
             raise ValueError("Skill is required.")
@@ -35,6 +36,7 @@ class BossFightEngine:
             "skill": str(skill).strip(),
             "parent_mission_id": str(parent_mission_id).strip(),
             "parent_mission_title": parent_mission_title,
+            "challenge_brief": deepcopy(challenge_brief or {}),
             "status": "ready",
             "created_at": self._now(),
             "started_at": None,

@@ -539,3 +539,157 @@ async def get_learning_profile(
 
 
     }
+
+# ---------------------------------------------------------------------------
+# BOSS FIGHT API
+# ---------------------------------------------------------------------------
+
+class BossFightRequest(BaseModel):
+    learner_id: str = Field(default="demo-learner", min_length=1)
+    skill: str = Field(default="python", min_length=1)
+    parent_mission_id: str = Field(min_length=1)
+
+
+class BossFightEvaluationRequest(BossFightRequest):
+    learner_response: str = Field(min_length=1)
+    attempt_type: Literal["code", "text", "answer"] = "text"
+
+
+async def _call_boss_fight_tool(
+    tool_name: str,
+    arguments: dict,
+) -> dict:
+    """Call a Boss Fight MCP tool and translate its result to HTTP semantics."""
+    orchestrator = LearningOrchestrator(
+        learner_id=arguments.get("learner_id", "demo-learner"),
+        skill=arguments.get("skill", "python"),
+        level="beginner",
+    )
+
+    try:
+        raw_result = await orchestrator.mcp.call_tool(
+            tool_name,
+            arguments,
+        )
+        result = LearningOrchestrator._extract_result(raw_result)
+
+    except HTTPException:
+        raise
+    except Exception as exc:
+        traceback.print_exc()
+        raise HTTPException(
+            status_code=502,
+            detail={
+                "message": "The Boss Fight service could not complete the request.",
+                "error_type": type(exc).__name__,
+            },
+        ) from exc
+
+    if not isinstance(result, dict):
+        raise HTTPException(
+            status_code=502,
+            detail="The Boss Fight service returned an invalid response.",
+        )
+
+    if result.get("status") == "error":
+        message = str(result.get("message", "Boss Fight request failed."))
+        lowered = message.lower()
+
+        if any(term in lowered for term in (
+            "not found", "unknown", "does not exist", "no such",
+        )):
+            status_code = 404
+        elif any(term in lowered for term in (
+            "already started", "already completed", "must be in_progress",
+            "must be ready", "invalid state", "cannot be",
+        )):
+            status_code = 409
+        else:
+            status_code = 400
+
+        raise HTTPException(
+            status_code=status_code,
+            detail={"message": message},
+        )
+
+    return result
+
+
+@app.post("/api/boss-fights")
+async def create_boss_fight_api(request: BossFightRequest) -> dict:
+    """Create a challenge linked to an existing catalog mission."""
+    return await _call_boss_fight_tool(
+        "create_boss_fight",
+        request.model_dump(),
+    )
+
+
+@app.post("/api/boss-fights/{challenge_id}/start")
+async def start_boss_fight_api(
+    challenge_id: str,
+    request: BossFightRequest,
+) -> dict:
+    """Start a ready challenge owned by the requesting learner."""
+    return await _call_boss_fight_tool(
+        "start_boss_fight",
+        {
+            **request.model_dump(),
+            "challenge_id": challenge_id,
+        },
+    )
+
+
+@app.post("/api/boss-fights/{challenge_id}/evaluate")
+async def evaluate_boss_fight_api(
+    challenge_id: str,
+    request: BossFightEvaluationRequest,
+) -> dict:
+    """Evaluate a response for an in-progress challenge."""
+    return await _call_boss_fight_tool(
+        "evaluate_boss_fight",
+        {
+            **request.model_dump(),
+            "challenge_id": challenge_id,
+        },
+    )
+
+
+@app.get("/api/boss-fights/{challenge_id}")
+async def get_boss_fight_api(
+    challenge_id: str,
+    learner_id: str = "demo-learner",
+    skill: str = "python",
+    parent_mission_id: str = "",
+) -> dict:
+    """Retrieve a specific challenge with its parent mission context."""
+    if not parent_mission_id.strip():
+        raise HTTPException(
+            status_code=422,
+            detail="parent_mission_id is required.",
+        )
+
+    return await _call_boss_fight_tool(
+        "get_boss_fight",
+        {
+            "challenge_id": challenge_id,
+            "learner_id": learner_id,
+            "skill": skill,
+            "parent_mission_id": parent_mission_id,
+        },
+    )
+
+
+@app.get("/api/boss-fights")
+async def list_boss_fights_api(
+    learner_id: str = "demo-learner",
+    skill: str | None = None,
+) -> dict:
+    """List challenges belonging to one learner, optionally by skill."""
+    arguments = {"learner_id": learner_id}
+    if skill is not None:
+        arguments["skill"] = skill
+
+    return await _call_boss_fight_tool(
+        "get_boss_fights",
+        arguments,
+    )

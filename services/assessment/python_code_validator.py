@@ -162,6 +162,55 @@ class PythonCodeValidator:
             for node in nodes
         )
 
+        has_dictionary_loop_based_total = any(
+            isinstance(function, ast.FunctionDef)
+            and function.name == "calculate_total"
+            and any(
+                isinstance(loop, ast.For)
+                and isinstance(loop.iter, ast.Name)
+                and loop.iter.id == "expenses"
+                and isinstance(loop.target, ast.Name)
+                and any(
+                    isinstance(update, ast.AugAssign)
+                    and isinstance(update.op, ast.Add)
+                    and isinstance(update.target, ast.Name)
+                    and isinstance(update.value, ast.Call)
+                    and any(
+                        isinstance(subscript, ast.Subscript)
+                        and isinstance(subscript.value, ast.Name)
+                        and subscript.value.id == loop.target.id
+                        and isinstance(subscript.slice, ast.Constant)
+                        and subscript.slice.value == "amount"
+                        for subscript in ast.walk(update.value)
+                    )
+                    for update in ast.walk(loop)
+                )
+                and any(
+                    isinstance(return_node, ast.Return)
+                    and isinstance(return_node.value, ast.Name)
+                    and any(
+                        isinstance(update, ast.AugAssign)
+                        and isinstance(update.op, ast.Add)
+                        and isinstance(update.target, ast.Name)
+                        and update.target.id == return_node.value.id
+                        and isinstance(update.value, ast.Call)
+                        and any(
+                            isinstance(subscript, ast.Subscript)
+                            and isinstance(subscript.value, ast.Name)
+                            and subscript.value.id == loop.target.id
+                            and isinstance(subscript.slice, ast.Constant)
+                            and subscript.slice.value == "amount"
+                            for subscript in ast.walk(update.value)
+                        )
+                        for update in ast.walk(loop)
+                    )
+                    for return_node in ast.walk(function)
+                )
+                for loop in ast.walk(function)
+            )
+            for function in ast.walk(tree)
+        )
+
         has_loop = any(
             isinstance(node, (ast.For, ast.While))
             for node in nodes
@@ -185,6 +234,7 @@ class PythonCodeValidator:
                 and (
                     has_sum_expenses
                     or has_loop_based_total
+                    or has_dictionary_loop_based_total
                 )
             ),
             "multiple_expenses": has_loop,

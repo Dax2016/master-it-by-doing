@@ -1,5 +1,6 @@
 import os
 import uuid
+from copy import deepcopy
 
 from services.assessment.assessment_service import AssessmentService
 from services.assessment.boss_fight_engine import BossFightEngine
@@ -762,6 +763,11 @@ def create_boss_fight(
             skill=canonical_skill,
             parent_mission_id=mission["id"],
             parent_mission_title=mission["title"],
+            challenge_brief={
+                "instructions": mission.get("description", ""),
+                "skills": list(mission.get("skills", [])),
+                "criteria": deepcopy(mission.get("criteria", [])),
+            },
         )
     except (TypeError, ValueError) as exc:
         return {"status": "error", "message": str(exc)}
