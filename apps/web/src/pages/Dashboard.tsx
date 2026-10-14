@@ -380,6 +380,13 @@ export default function Dashboard() {
       : ''
 
   const selectedSkillKey = normalizeSkill(selectedPath)
+
+  const skillAchievements = (
+    learnerProfile?.achievements ?? []
+  ).filter(
+    (achievement) =>
+      normalizeSkill(achievement.skill) === selectedSkillKey,
+  )
   const missionsBySkill = learnerProfile?.current?.active_missions
   const skillMission = missionsBySkill?.[selectedSkillKey] ?? null
 
@@ -398,6 +405,27 @@ export default function Dashboard() {
       : null)
 
   const activeMission = activeMissionCandidate
+
+  const completedMissionsForSkill = (
+  learnerProfile?.demonstrated?.completed_missions ?? []
+  ).filter(
+  (mission) =>
+    normalizeSkill(mission.skill) === selectedSkillKey,
+  )
+
+
+const learningStatus =
+    learningState?.next_action === 'submit_attempt'
+      ? 'Mission ready'
+      : activeMission
+        ? 'Learning in progress'
+        : completedMissionsForSkill.length > 0
+          ? 'Mission mastered'
+          : learningState?.next_action === 'create_learning_goal'
+            ? 'Set your learning goal'
+            : 'Ready to begin'
+
+
 
   const activeMissionId =
     typeof activeMission?.mission_id === 'string'
@@ -426,7 +454,7 @@ export default function Dashboard() {
       </header>
 
       <section className="dashboard-content">
-        
+
 <div className="dashboard-hero">
   <div className="dashboard-hero-copy">
     <span className="eyebrow">
@@ -532,12 +560,10 @@ export default function Dashboard() {
                 <div className="dashboard-card">
                   <span>Learning status</span>
 
-                  <strong className="big-score">
-                    {learningState.next_action ===
-                    'submit_attempt'
-                      ? 'Mission ready'
-                      : 'Learning in progress'}
-                  </strong>
+                <strong className="big-score">
+                {learningStatus}
+              </strong>
+
 
                   <p>
                     Continue building practical evidence
@@ -545,12 +571,12 @@ export default function Dashboard() {
                   </p>
                 </div>
 
-                
+
 <div className="dashboard-card mission-dashboard-card">
   <span>Current mission</span>
 
   <img
-    src="/images/dashboard/ms_05.jpg"  
+    src="/images/dashboard/ms_05.jpg"
     className="mission-dashboard-image"
   />
 
@@ -580,6 +606,79 @@ export default function Dashboard() {
                   )}
                 </div>
               </div>
+
+              <section className="evidence-portfolio-section achievements-section">
+                <div className="evidence-portfolio-header">
+                  <div>
+                    <span className="eyebrow">
+                      SKILL MILESTONES
+                    </span>
+                    <h2>Your Achievements</h2>
+                    <p>
+                      Badges earned through demonstrated progress in this learning path.
+                    </p>
+                  </div>
+                  <strong className="evidence-count">
+                    {skillAchievements.length} {skillAchievements.length === 1 ? 'badge' : 'badges'}
+                  </strong>
+                </div>
+
+                {skillAchievements.length === 0 ? (
+                  <div className="dashboard-card evidence-empty-state achievements-empty-state">
+                    <h3>Your first badge awaits</h3>
+                    <p>
+                      Complete an eligible challenge successfully to earn an achievement for this skill.
+                    </p>
+                  </div>
+                ) : (
+                  <div className="evidence-grid">
+                    {skillAchievements.map((achievement, index) => {
+                      const title =
+                        typeof achievement.title === 'string'
+                          ? achievement.title
+                          : typeof achievement.name === 'string'
+                            ? achievement.name
+                            : typeof achievement.achievement_id === 'string'
+                              ? achievement.achievement_id
+                              : 'Achievement'
+
+                      const description =
+                        typeof achievement.description === 'string'
+                          ? achievement.description
+                          : typeof achievement.boss_fight_id === 'string'
+                            ? `Earned by passing Boss Fight ${achievement.boss_fight_id}.`
+                            : 'Achievement earned for this learning path.'
+
+                      const recordKey =
+                        typeof achievement.id === 'string'
+                          ? achievement.id
+                          : typeof achievement.achievement_id === 'string'
+                            ? achievement.achievement_id
+                            : `${title}-${index}`
+
+                      return (
+                        <article
+                          className="evidence-card achievement-card"
+                          key={recordKey}
+                        >
+                      <div className="evidence-card-topline">
+                      <span className="evidence-source">
+                     {String.fromCodePoint(0x1F3C6)} {title}
+                   </span>
+              </div>
+                          <h3>{title}</h3>
+                          <p>{description}</p>
+                          {typeof achievement.skill === 'string' && (
+                            <span className="evidence-status passed">
+                              {achievement.skill}
+                            </span>
+                          )}
+                        </article>
+                      )
+                    })}
+                  </div>
+                )}
+              </section>
 
               <section className="evidence-portfolio-section">
                 <div className="evidence-portfolio-header">
@@ -760,6 +859,7 @@ export default function Dashboard() {
 }
 interface LearnerProfile {
   learner_id: string
+  achievements?: Record<string, unknown>[]
   current: {
     goal: Record<string, unknown> | null
     active_mission: Record<string, unknown> | null

@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { Link, useParams } from 'react-router-dom'
+import { Link, useNavigate, useParams } from 'react-router-dom'
 
 type Criterion = {
   id: string
@@ -168,6 +168,7 @@ const VOICE_PROFILES: VoiceProfile[] = [
 
 export default function Mission() {
   const { missionId } = useParams()
+  const navigate = useNavigate()
 
   const [learningState, setLearningState] =
     useState<LearningState | null>(null)
@@ -184,6 +185,52 @@ export default function Mission() {
     useState(false)
 
   const [error, setError] = useState('')
+  const [isActivatingNextMission, setIsActivatingNextMission] =
+    useState(false)
+  const [nextMissionError, setNextMissionError] = useState('')
+
+  async function handleStartNextMission(nextMission: NextMission) {
+    if (isActivatingNextMission) return
+
+    setIsActivatingNextMission(true)
+    setNextMissionError('')
+
+    try {
+      const response = await fetch(
+        `http://127.0.0.1:8001/api/missions/${encodeURIComponent(nextMission.id)}/activate`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            learner_id: learningState?.learner_id ?? 'demo-learner',
+            skill: nextMission.skill,
+            level: learningState?.level ?? 'beginner',
+          }),
+        },
+      )
+
+      const result = await response.json().catch(() => null)
+
+      if (!response.ok) {
+        const detail = result?.detail
+        throw new Error(
+          typeof detail === 'string'
+            ? detail
+            : 'Could not activate the next mission. Please try again.',
+        )
+      }
+
+      navigate(`/mission/${encodeURIComponent(nextMission.id)}`)
+    } catch (err) {
+      setNextMissionError(
+        err instanceof Error
+          ? err.message
+          : 'Could not activate the next mission. Please try again.',
+      )
+    } finally {
+      setIsActivatingNextMission(false)
+    }
+  }
 
   const [bossFight, setBossFight] =
     useState<BossFightChallenge | null>(null)
@@ -199,7 +246,7 @@ export default function Mission() {
   const [voiceReaction, setVoiceReaction] =
   useState<VoiceReaction | null>(null)
 
-  
+
   const [selectedVoice, setSelectedVoice] = useState<string>(() => {
   if (typeof window === 'undefined') return 'default'
 
@@ -1292,15 +1339,43 @@ announceReaction(reaction)
                           Your next challenge is ready.
                         </h3>
 
-                        <Link
-                          to={`/mission/${nextMission.id}`}
+                        {nextMissionError && (
+                          <p role="alert" className="error-message">
+                            {nextMissionError}
+                          </p>
+                        )}
+
+                        <button
+                          type="button"
                           className="next-mission-button"
+                          onClick={() => handleStartNextMission(nextMission)}
+                          disabled={isActivatingNextMission}
                         >
-                          Start Next Mission â†’
-                        </Link>
+                          {isActivatingNextMission
+                            ? 'Activating Mission...'
+                            : 'Start Next Mission →'}
+                        </button>
                       </div>
                     </section>
                   )}
+
+                  {isMastered &&
+                    !nextMission &&
+                    adaptedMission?.next_action === 'learning_path_complete' && (
+                      <section className="adapted-mission">
+                        <div className="adapted-mission-header">
+                          <div>
+                            <span className="eyebrow">SKILL PATH COMPLETE</span>
+                            <h2>Learning Path Complete!</h2>
+                          </div>
+                          <span className="status">MASTERED</span>
+                        </div>
+                        <p>
+                          {adaptedMission.message ??
+                            'You have completed every mission in this skill path. You can now demonstrate your skills in a Boss Fight assessment or build a portfolio project.'}
+                        </p>
+                      </section>
+                    )}
 
                   {practiceCompleted && mission && (
                     <section className="adapted-mission">

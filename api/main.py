@@ -67,6 +67,12 @@ class StartLearningRequest(BaseModel):
     mission_id: str | None = None
 
 
+class ActivateMissionRequest(BaseModel):
+    learner_id: str = Field(default="demo-learner", min_length=1)
+    skill: str = Field(default="python", min_length=1)
+    level: str = Field(default="beginner", min_length=1)
+
+
 class AttemptRequest(BaseModel):
     """
     Request body for submitting a learner attempt.
@@ -258,6 +264,58 @@ async def get_learning_paths() -> dict:
         "status": "ok",
         "paths": get_courses(),
     }
+
+@app.post("/api/missions/{mission_id}/activate")
+async def activate_mission(
+    mission_id: str,
+    request: ActivateMissionRequest,
+) -> dict:
+    """Activate a selected catalog mission for the specified learner."""
+
+    lookup = get_mission_by_id(mission_id.strip())
+    if lookup is None:
+        raise HTTPException(
+            status_code=404,
+            detail=f"Unknown mission ID: {mission_id}",
+        )
+
+    canonical_skill, _ = lookup
+
+    def normalize(value: str) -> str:
+        return value.strip().casefold().replace("_", "-").replace(" ", "-")
+
+    if normalize(request.skill) != normalize(canonical_skill):
+        raise HTTPException(
+            status_code=400,
+            detail="The mission does not belong to the requested skill.",
+        )
+
+    try:
+        orchestrator = LearningOrchestrator(
+            learner_id=request.learner_id,
+            skill=canonical_skill,
+            level=request.level,
+        )
+        result = await orchestrator.activate_mission(mission_id.strip())
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except Exception as exc:
+        traceback.print_exc()
+        raise HTTPException(
+            status_code=500,
+            detail="Mission activation failed.",
+        ) from exc
+
+    status = result.get("status") if isinstance(result, dict) else None
+    if status == "not_found":
+        raise HTTPException(status_code=404, detail=result.get("message"))
+    if status == "skill_mismatch":
+        raise HTTPException(status_code=400, detail=result.get("message"))
+    if status == "conflict":
+        raise HTTPException(status_code=409, detail=result.get("message"))
+
+    return result
+
 
 @app.get("/api/missions/{mission_id}")
 async def get_mission(

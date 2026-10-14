@@ -144,6 +144,16 @@ def test_passed_challenge_records_linked_evidence_without_advancing_mastery(
     assert evidence["evidence_type"] == "boss_fight"
     assert evidence["boss_fight_id"] == challenge_id
 
+    # A passed Boss Fight awards a skill-scoped achievement.
+    achievements = learner.get_learner_profile(skill=SKILL)["achievements"]
+    assert len(achievements) == 1
+    assert achievements[0]["achievement_id"] == "boss-fight-first-victory"
+    assert achievements[0]["boss_fight_id"] == challenge_id
+
+    # The Python achievement must not leak into another skill.
+    assert learner.get_learner_profile(skill="AWS-Cloud")["achievements"] == []
+    assert learner.get_learner_profile(skill="JavaScript")["achievements"] == []
+
     for name, previous_value in before.items():
         assert getattr(learner, name, None) == previous_value, name
 
@@ -179,6 +189,9 @@ def test_failed_challenge_records_failure_without_advancing_mastery(
     assert len(learner.attempts) == 1
     assert len(learner.evidence) == 1
     assert learner.evidence[0]["passed"] is False
+
+    # A failed Boss Fight must not award an achievement.
+    assert learner.get_learner_profile(skill=SKILL)["achievements"] == []
 
     challenge = server.get_boss_fight(
         challenge_id=challenge_id,

@@ -1,4 +1,5 @@
 from dataclasses import dataclass, field
+from datetime import datetime, timezone
 from typing import Any
 
 
@@ -24,6 +25,7 @@ class LearnerState:
 
     evidence: list[dict] = field(default_factory=list)
     capabilities: list[dict] = field(default_factory=list)
+    achievements: list[dict[str, Any]] = field(default_factory=list)
 
     strengths: list[str] = field(default_factory=list)
     weaknesses: list[str] = field(default_factory=list)
@@ -47,6 +49,28 @@ class LearnerState:
     def add_evidence(self, evidence: dict) -> None:
         """Record evidence produced by an evaluated attempt."""
         self.evidence.append(evidence)
+
+    def award_achievement(self, achievement: dict[str, Any]) -> bool:
+        """Award an achievement once per canonical skill path."""
+        achievement_id = str(achievement.get("achievement_id", "")).strip()
+        skill = str(achievement.get("skill", "")).strip()
+        if not achievement_id or not skill:
+            raise ValueError("Achievement ID and skill are required.")
+
+        skill_key = self._skill_key(skill)
+        already_awarded = any(
+            item.get("achievement_id") == achievement_id
+            and self._skill_key(item.get("skill", "")) == skill_key
+            for item in self.achievements
+        )
+        if already_awarded:
+            return False
+
+        record = dict(achievement)
+        record["skill"] = skill
+        record["awarded_at"] = datetime.now(timezone.utc).isoformat()
+        self.achievements.append(record)
+        return True
 
     def add_capability(self, capability: dict) -> None:
         """Record or update a demonstrated learner capability."""
@@ -284,6 +308,7 @@ class LearnerState:
             "attempts": self.attempts,
             "evidence": self.evidence,
             "capabilities": self.capabilities,
+            "achievements": self.achievements,
             "strengths": self.strengths,
             "weaknesses": self.weaknesses,
             "mastery": self.mastery,
@@ -427,8 +452,16 @@ class LearnerState:
                 elif status == "developing":
                     developing.append(entry)
 
+        achievements = [
+            achievement
+            for achievement in self.achievements
+            if skill is None
+            or normalize(achievement.get("skill")) == normalize(skill)
+        ]
+
         return {
             "learner_id": self.learner_id,
+            "achievements": achievements,
             "current": {
                 "goal": current_goal,
                 "active_mission": active_mission,

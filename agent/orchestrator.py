@@ -184,6 +184,33 @@ class LearningOrchestrator:
 
         return result
 
+    async def activate_mission(self, mission_id: str) -> dict:
+        """Activate an exact catalog mission for this learner and skill."""
+
+        lookup = get_mission_by_id(mission_id)
+        if lookup is None:
+            raise ValueError(f"Unknown mission ID: {mission_id}")
+
+        canonical_skill, _ = lookup
+
+        def normalize(value: str) -> str:
+            return value.strip().casefold().replace("_", "-").replace(" ", "-")
+
+        if normalize(self.session.skill) != normalize(canonical_skill):
+            raise ValueError(
+                "The mission does not belong to the requested skill."
+            )
+
+        result = await self.mcp.call_tool(
+            "activate_mission",
+            {
+                "mission_id": mission_id,
+                "skill": canonical_skill,
+                "learner_id": self.session.learner_id,
+            },
+        )
+        return self._extract_result(result)
+
     def _attempt_context(self) -> Dict[str, Any]:
         """Return the mission context that should be used for the current attempt."""
 

@@ -201,6 +201,62 @@ def get_concepts(
     }
 
 
+# MISSION ACTIVATION
+# ---------------------------------------------------------------------------
+
+def normalize_skill_name(skill: str) -> str:
+    return skill.strip().casefold().replace("_", "-").replace(" ", "-")
+
+
+@mcp.tool()
+def activate_mission(
+    mission_id: str,
+    skill: str,
+    learner_id: str = "demo-learner",
+) -> dict:
+    """Activate one exact catalog mission without replacing active work."""
+
+    lookup = get_mission_by_id(mission_id.strip())
+    if lookup is None:
+        return {
+            "status": "not_found",
+            "message": f"Unknown mission ID: {mission_id}",
+        }
+
+    canonical_skill, mission = lookup
+    if normalize_skill_name(skill) != normalize_skill_name(canonical_skill):
+        return {
+            "status": "skill_mismatch",
+            "message": "The mission does not belong to the requested skill.",
+        }
+
+    learner = get_learner(learner_id)
+    active = learner.get_active_mission(canonical_skill)
+
+    if active and active.get("status") == "in_progress":
+        if active.get("mission_id") == mission.get("id"):
+            return {
+                "status": "resumed",
+                "learner_id": learner.learner_id,
+                "skill": canonical_skill,
+                "mission": mission,
+            }
+
+        return {
+            "status": "conflict",
+            "message": "Another mission is already in progress for this skill.",
+            "active_mission": active,
+        }
+
+    learner.set_active_mission(mission, canonical_skill)
+    return {
+        "status": "activated",
+        "learner_id": learner.learner_id,
+        "skill": canonical_skill,
+        "mission": mission,
+    }
+
+
 # MISSION CREATION
 # ---------------------------------------------------------------------------
 
@@ -950,6 +1006,17 @@ def evaluate_boss_fight(
     })
     learner.add_evidence(evidence)
 
+    if evaluation.get("passed") is True:
+        learner.award_achievement({
+            "achievement_id": "boss-fight-first-victory",
+            "title": "Boss Fight: First Victory",
+            "description": "Passed an independent practical assessment.",
+            "icon": "trophy",
+            "skill": canonical_skill,
+            "boss_fight_id": challenge_id,
+            "evidence_id": evidence_id,
+        })
+
     return {
         "status": "evaluated",
         "challenge": completed_challenge,
@@ -1634,6 +1701,14 @@ def adapt_learning_mission(
                 }
             )
 
+        learner.award_achievement({
+            "achievement_id": "first-mission-mastered",
+            "title": "First Mission Mastered",
+            "description": "Mastered a mission in this learning path.",
+            "icon": "trophy",
+            "skill": skill,
+        })
+
         # ---------------------------------------------------------------
         # Clear the active mission now that it has been mastered.
         # ---------------------------------------------------------------
@@ -1673,11 +1748,8 @@ def adapt_learning_mission(
                 ),
             }
 
-        # ---------------------------------------------------------------
-        # The next mission is unlocked but not automatically activated.
-        # The learner can now enter it through the normal mission flow.
-        # ---------------------------------------------------------------
-
+        # The next mission is available but remains inactive.
+        # The learner must explicitly choose to start it.
         return {
             "status": "adapted",
             "learner_id": learner.learner_id,
@@ -1694,7 +1766,7 @@ def adapt_learning_mission(
             "message": (
                 "The learner demonstrated mastery. "
                 "The completed mission has been recorded and "
-                "the next mission is now available."
+                "the next mission is available to start."
             ),
         }
 
