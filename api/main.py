@@ -613,6 +613,11 @@ class BossFightEvaluationRequest(BossFightRequest):
     attempt_type: Literal["code", "text", "answer"] = "text"
 
 
+class BossFightInterviewRequest(BossFightRequest):
+    learner_response: str = ""
+    attempt_type: Literal["code", "text", "answer"] = "text"
+
+
 async def _call_boss_fight_tool(
     tool_name: str,
     arguments: dict,
@@ -694,6 +699,18 @@ async def start_boss_fight_api(
             **request.model_dump(),
             "challenge_id": challenge_id,
         },
+    )
+
+
+@app.post("/api/boss-fights/{challenge_id}/interview")
+async def continue_boss_fight_interview_api(
+    challenge_id: str,
+    request: BossFightInterviewRequest,
+) -> dict:
+    """Request the opening or next examiner question."""
+    return await _call_boss_fight_tool(
+        "continue_boss_fight_interview",
+        {**request.model_dump(), "challenge_id": challenge_id},
     )
 
 

@@ -112,6 +112,50 @@ class BossFightEngine:
         challenge["started_at"] = self._now()
         return deepcopy(challenge)
 
+    def append_interview_exchange(
+        self,
+        learner: Any,
+        challenge_id: str,
+        *,
+        skill: str,
+        parent_mission_id: str,
+        learner_response: str = "",
+        attempt_type: str = "text",
+        examiner_response: str,
+    ) -> dict:
+        """Append an interview exchange without finalizing the challenge."""
+        challenge = self._find(
+            learner, challenge_id, skill, parent_mission_id
+        )
+        if challenge["status"] != "in_progress":
+            raise ValueError(
+                "Interview turns require an in-progress Boss Fight."
+            )
+        if attempt_type not in {"code", "text", "answer"}:
+            raise ValueError("attempt_type must be code, text, or answer.")
+        if not isinstance(examiner_response, str) or not examiner_response.strip():
+            raise ValueError("An examiner response is required.")
+
+        transcript = challenge.setdefault("interview_transcript", [])
+        response = learner_response.strip() if isinstance(
+            learner_response, str
+        ) else ""
+
+        if response:
+            transcript.append({
+                "role": "learner",
+                "content": response[:12000],
+                "attempt_type": attempt_type,
+                "timestamp": self._now(),
+            })
+
+        transcript.append({
+            "role": "examiner",
+            "content": examiner_response.strip()[:4000],
+            "timestamp": self._now(),
+        })
+        return deepcopy(challenge)
+
     def record_evaluation(
         self,
         learner: Any,

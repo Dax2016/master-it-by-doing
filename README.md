@@ -67,7 +67,7 @@ The current implementation includes a working adaptive learning vertical slice w
 
 The current test suite passes:
 
-**71 tests passed**
+**139 tests passed** (full repository test suite; verified October 17, 2026)
 
 ## Vision
 

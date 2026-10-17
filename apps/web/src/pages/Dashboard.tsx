@@ -1,5 +1,6 @@
-import { useEffect, useRef, useState } from 'react'
+﻿import { useEffect, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
+import { useAuth } from 'react-oidc-context'
 
 interface MissionDetails {
   id: string
@@ -77,6 +78,7 @@ interface StartLearningResponse {
 const API_BASE_URL = 'http://127.0.0.1:8001'
 
 export default function Dashboard() {
+  const auth = useAuth()
   const [learningState, setLearningState] =
     useState<LearningState | null>(null)
 
@@ -368,12 +370,12 @@ export default function Dashboard() {
   const profileGoalSkill = learnerProfile?.current?.goal?.skill
 
   const currentGoalSkill =
-    typeof stateGoalSkill === 'string'
+    selectedPath ||
+    (typeof stateGoalSkill === 'string'
       ? stateGoalSkill
       : typeof profileGoalSkill === 'string'
         ? profileGoalSkill
-        : learningState?.skill
-
+        : learningState?.skill)
   const normalizeSkill = (value: unknown): string =>
     typeof value === 'string'
       ? value.trim().toLowerCase().replace(/[_\s]+/g, '-')
@@ -440,17 +442,34 @@ const learningStatus =
   return (
     <main className="dashboard">
       <header className="dashboard-header">
-        <div className="brand">
-          <img
-            src="/brand/master-it-by-doing.png"
-            alt="Master It By Doing"
-            className="brand-logo"
-          />
+        <Link
+          to="/"
+          className="dashboard-brand-link"
+          aria-label="Return to Master It By Doing homepage"
+        >
+          <div className="brand">
+            <img
+              src="/brand/master-it-by-doing.png"
+              alt=""
+              className="brand-logo"
+            />
+            <span>Master It By Doing</span>
+          </div>
+        </Link>
 
-          <span>Master It By Doing</span>
-        </div>
-
-        <button>Sign out</button>
+        <nav className="dashboard-header-actions" aria-label="Dashboard navigation">
+          <Link to="/" className="dashboard-home-link">
+            <span aria-hidden="true">?</span>
+            Home
+          </Link>
+          <button
+            type="button"
+            className="dashboard-signout-btn"
+            onClick={() => void auth.signoutRedirect()}
+          >
+            Sign out
+          </button>
+        </nav>
       </header>
 
       <section className="dashboard-content">
@@ -577,7 +596,7 @@ const learningStatus =
 
   <img
     src="/images/dashboard/ms_05.jpg"
-    className="mission-dashboard-image"
+    className="mission-dashboard-image" alt="Illustration for the current practical learning mission"
   />
 
   <h2>

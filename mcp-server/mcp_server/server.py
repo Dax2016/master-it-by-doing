@@ -4,6 +4,7 @@ from copy import deepcopy
 
 from services.assessment.assessment_service import AssessmentService
 from services.assessment.boss_fight_engine import BossFightEngine
+from services.assessment.boss_fight_interviewer import BossFightInterviewer
 from mcp.server.fastmcp import FastMCP
 from mcp.server.transport_security import TransportSecuritySettings
 
@@ -60,6 +61,7 @@ def get_learner(
 assessment_service = AssessmentService()
 
 boss_fight_engine = BossFightEngine()
+boss_fight_interviewer = BossFightInterviewer()
 
 
 # ---------------------------------------------------------------------------
@@ -863,6 +865,99 @@ def start_boss_fight(
 
 
 @mcp.tool()
+def continue_boss_fight_interview(
+    challenge_id: str,
+    skill: str,
+    parent_mission_id: str,
+    learner_response: str = "",
+    attempt_type: str = "text",
+    learner_id: str = "demo-learner",
+) -> dict:
+    """Continue an interview without finalizing the assessment."""
+    resolved = _resolve_boss_parent(skill, parent_mission_id)
+    if resolved is None:
+        return {
+            "status": "error",
+            "message": "Unknown mission ID or mission does not belong to this skill.",
+        }
+
+    canonical_skill, parent = resolved
+    normalized_type = str(attempt_type).strip().lower()
+    if normalized_type not in {"code", "text", "answer"}:
+        return {"status": "error", "message": "attempt_type must be code, text, or answer."}
+    if not isinstance(learner_response, str):
+        return {"status": "error", "message": "learner_response must be text."}
+
+    learner = get_learner(learner_id)
+    try:
+        challenge = boss_fight_engine.get_challenge(
+            learner, challenge_id, skill=canonical_skill,
+            parent_mission_id=parent["id"],
+        )
+    except ValueError as exc:
+        return {"status": "error", "message": str(exc)}
+
+    if challenge["status"] != "in_progress":
+        return {
+            "status": "error",
+            "message": "Only an in-progress Boss Fight can continue its interview.",
+        }
+
+    transcript = challenge.get("interview_transcript", [])
+    response_text = learner_response.strip()
+    if not response_text and transcript:
+        return {
+            "status": "error",
+            "message": "Provide an answer before requesting the next question.",
+        }
+
+    prompt_transcript = list(transcript)
+    if response_text:
+        prompt_transcript.append({
+            "role": "learner",
+            "content": response_text[:12000],
+            "attempt_type": normalized_type,
+        })
+
+    mission_data = {
+        **parent,
+        "id": parent["id"],
+        "skill": canonical_skill,
+        "title": parent["title"],
+        "mission": parent["title"],
+    }
+
+    try:
+        question = boss_fight_interviewer.generate_question(
+            mission=mission_data,
+            challenge=challenge,
+            transcript=prompt_transcript,
+        )
+        updated = boss_fight_engine.append_interview_exchange(
+            learner, challenge_id, skill=canonical_skill,
+            parent_mission_id=parent["id"],
+            learner_response=response_text,
+            attempt_type=normalized_type,
+            examiner_response=question,
+        )
+    except (TypeError, ValueError) as exc:
+        return {"status": "error", "message": str(exc)}
+    except Exception as exc:
+        return {
+            "status": "error",
+            "message": "The AI examiner could not generate the next question.",
+            "error_type": type(exc).__name__,
+        }
+
+    return {
+        "status": "interview_continued",
+        "challenge": updated,
+        "examiner_message": question,
+        "turn_count": len(updated.get("interview_transcript", [])),
+    }
+
+
+@mcp.tool()
 def evaluate_boss_fight(
     challenge_id: str,
     skill: str,
@@ -931,6 +1026,9 @@ def evaluate_boss_fight(
         "attempt_type": normalized_type,
         "learner_response": learner_response,
         "boss_fight_id": challenge_id,
+        "interview_transcript": deepcopy(
+            challenge.get("interview_transcript", [])
+        ),
     }
 
     try:

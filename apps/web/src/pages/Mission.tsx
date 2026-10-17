@@ -1,5 +1,116 @@
-import { useEffect, useState } from 'react'
+import { Fragment, useEffect, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
+
+
+function renderBossFightInline(text: string) {
+  const parts = text.split(/(\*\*.+?\*\*|`[^`]+`|\*[^*\n]+\*)/g)
+
+  return parts.map((part, index) => {
+    if (part.startsWith("**") && part.endsWith("**")) {
+      return <strong key={index}>{part.slice(2, -2)}</strong>
+    }
+
+    if (part.startsWith("`") && part.endsWith("`")) {
+      return <code className="boss-fight-inline-code" key={index}>{part.slice(1, -1)}</code>
+    }
+
+    if (part.startsWith("*") && part.endsWith("*")) {
+      return <em key={index}>{part.slice(1, -1)}</em>
+    }
+
+    return <Fragment key={index}>{part}</Fragment>
+  })
+}
+
+function BossFightMessage({ content }: { content?: string }) {
+  const normalized = (content ?? "").replace(/\\([`*_#>~])/g, "$1")
+  const lines = normalized.replace(/\r\n?/g, "\n").split("\n")
+  const blocks = []
+  let index = 0
+
+  const isBlockStart = (line: string) =>
+    /^#{1,3}\s+/.test(line) ||
+    /^>\s?/.test(line) ||
+    /^[-*+]\s+/.test(line) ||
+    /^\d+[.)]\s+/.test(line)
+
+  while (index < lines.length) {
+    const line = lines[index].trim()
+
+    if (!line) {
+      index += 1
+      continue
+    }
+
+    const heading = line.match(/^(#{1,3})\s+(.+)$/)
+    if (heading) {
+      blocks.push(
+        <h3 key={`heading-${index}`}>{renderBossFightInline(heading[2])}</h3>,
+      )
+      index += 1
+      continue
+    }
+
+    if (/^>\s?/.test(line)) {
+      const quoteLines = []
+      while (index < lines.length && /^>\s?/.test(lines[index].trim())) {
+        quoteLines.push(lines[index].trim().replace(/^>\s?/, ""))
+        index += 1
+      }
+      blocks.push(
+        <blockquote key={`quote-${index}`}>
+          {quoteLines.map((quote, quoteIndex) => (
+            <p key={quoteIndex}>{renderBossFightInline(quote)}</p>
+          ))}
+        </blockquote>,
+      )
+      continue
+    }
+
+    const unordered = /^[-*+]\s+/.test(line)
+    const ordered = /^\d+[.)]\s+/.test(line)
+
+    if (unordered || ordered) {
+      const items = []
+      const pattern = unordered ? /^[-*+]\s+/ : /^\d+[.)]\s+/
+
+      while (index < lines.length && pattern.test(lines[index].trim())) {
+        items.push(lines[index].trim().replace(pattern, ""))
+        index += 1
+      }
+
+      const ListTag = ordered ? "ol" : "ul"
+      blocks.push(
+        <ListTag key={`list-${index}`}>
+          {items.map((item, itemIndex) => (
+            <li key={itemIndex}>{renderBossFightInline(item)}</li>
+          ))}
+        </ListTag>,
+      )
+      continue
+    }
+
+    const paragraph = [line]
+    index += 1
+
+    while (
+      index < lines.length &&
+      lines[index].trim() &&
+      !isBlockStart(lines[index].trim())
+    ) {
+      paragraph.push(lines[index].trim())
+      index += 1
+    }
+
+    blocks.push(
+      <p key={`paragraph-${index}`}>
+        {renderBossFightInline(paragraph.join(" "))}
+      </p>,
+    )
+  }
+
+  return <div className="boss-fight-markdown">{blocks}</div>
+}
 
 type Criterion = {
   id: string
@@ -94,6 +205,12 @@ type BossFightChallenge = {
   status: string
   parent_mission_title?: string
   evaluation?: Record<string, unknown> | null
+  interview_transcript?: {
+    role?: string
+    content?: string
+    attempt_type?: string
+    timestamp?: string
+  }[]
   challenge_brief?: {
     instructions?: string
     skills?: string[]
@@ -105,6 +222,8 @@ type BossFightApiResponse = {
   status?: string
   challenge?: BossFightChallenge
   evaluation?: Record<string, unknown>
+  examiner_message?: string
+  turn_count?: number
   detail?: unknown
   message?: string
 }
@@ -235,6 +354,7 @@ export default function Mission() {
   const [bossFight, setBossFight] =
     useState<BossFightChallenge | null>(null)
   const [bossFightResponse, setBossFightResponse] = useState('')
+  const [bossFightDraft, setBossFightDraft] = useState('')
   const [bossFightEvaluation, setBossFightEvaluation] =
     useState<Record<string, unknown> | null>(null)
   const [bossFightBusy, setBossFightBusy] = useState(false)
@@ -373,6 +493,7 @@ function announceReaction(reaction: VoiceReaction) {
         setEvaluation(null)
         setBossFight(null)
         setBossFightResponse('')
+        setBossFightDraft('')
         setBossFightEvaluation(null)
         setBossFightError('')
         setBossFightAttemptType('code')
@@ -729,6 +850,7 @@ announceReaction(reaction)
     setBossFightError('')
     setBossFightEvaluation(null)
     setBossFightResponse('')
+    setBossFightDraft('')
 
     try {
       const payload = await requestBossFight(
@@ -770,12 +892,80 @@ announceReaction(reaction)
         throw new Error('The server did not return the started challenge.')
       }
 
+      // Preserve the started challenge even if the opening question fails.
       setBossFight(payload.challenge)
+
+      const interview = await requestBossFight(
+        `/api/boss-fights/${encodeURIComponent(bossFight.id)}/interview`,
+        'POST',
+        {
+          ...bossFightBasePayload(),
+          learner_response: '',
+          attempt_type: bossFightAttemptType,
+        },
+      )
+
+      if (!interview.challenge || !interview.examiner_message) {
+        const backendMessage =
+          typeof interview.message === 'string' ? interview.message : undefined
+        throw new Error(
+          backendMessage ??
+          'The examiner response was incomplete. Check the API terminal for details.',
+        )
+      }
+
+      setBossFight(interview.challenge)
+      setBossFightDraft('')
     } catch (requestError) {
       setBossFightError(
         requestError instanceof Error
           ? requestError.message
           : 'Could not start the Boss Fight.',
+      )
+    } finally {
+      setBossFightBusy(false)
+    }
+  }
+
+  const continueBossFightInterview = async () => {
+    if (!mission || !bossFight || bossFightBusy) return
+
+    const hasTranscript = (bossFight.interview_transcript?.length ?? 0) > 0
+    const answer = bossFightDraft.trim()
+
+    // An empty answer is permitted only to retry the opening question.
+    if (hasTranscript && !answer) return
+
+    setBossFightBusy(true)
+    setBossFightError('')
+
+    try {
+      const payload = await requestBossFight(
+        `/api/boss-fights/${encodeURIComponent(bossFight.id)}/interview`,
+        'POST',
+        {
+          ...bossFightBasePayload(),
+          learner_response: answer,
+          attempt_type: bossFightAttemptType,
+        },
+      )
+
+      if (!payload.challenge || !payload.examiner_message) {
+        const backendMessage =
+          typeof payload.message === 'string' ? payload.message : undefined
+        throw new Error(
+          backendMessage ??
+          'The examiner response was incomplete. Check the API terminal for details.',
+        )
+      }
+
+      setBossFight(payload.challenge)
+      setBossFightDraft('')
+    } catch (requestError) {
+      setBossFightError(
+        requestError instanceof Error
+          ? requestError.message
+          : 'Could not continue the interview.',
       )
     } finally {
       setBossFightBusy(false)
@@ -928,19 +1118,32 @@ announceReaction(reaction)
             </div>
           </section>
 
-          <section className="mission-header">
-            <span className="eyebrow">
-              PRACTICAL MISSION
-            </span>
+          <section className="mission-header mission-header--visual">
+            <div className="mission-header-copy">
+              <span className="eyebrow">
+                PRACTICAL MISSION
+              </span>
 
-            <h1>{mission.title}</h1>
+              <h1>{mission.title}</h1>
 
-            <p>
-              Complete this practical challenge to
-              continue your mastery journey. Your work
-              will become the basis for the next
-              evaluation and challenge.
-            </p>
+              <p>
+                Complete this practical challenge to
+                continue your mastery journey. Your work
+                will become the basis for the next
+                evaluation and challenge.
+              </p>
+            </div>
+
+            <div className="mission-visual">
+              <img
+                src="/images/mission/mission-practical-visual-ms_03.jpg"
+                alt="Visual inspiration for your practical learning mission"
+                loading="lazy"
+              />
+              <span className="mission-visual-caption">
+                LEARN BY BUILDING
+              </span>
+            </div>
           </section>
 
           <section
@@ -1529,6 +1732,22 @@ announceReaction(reaction)
       )}
       {!isLoadingMission && mission && (
         <section className="boss-fight-card" aria-labelledby="boss-fight-title">
+          <div className="boss-fight-examiner-bar">
+            <div className="boss-fight-examiner-mark" aria-hidden="true">B</div>
+            <div className="boss-fight-examiner-copy">
+              <span className="boss-fight-examiner-kicker">MASTER IT BY DOING · MASTERY INTERVIEW</span>
+              <strong>The Technical Examiner</strong>
+              <span>Practical reasoning, implementation and evidence</span>
+            </div>
+            <div className="boss-fight-live-indicator">
+              <span aria-hidden="true" />
+              {bossFight?.status === 'in_progress'
+                ? 'SESSION LIVE'
+                : bossFight?.status === 'ready'
+                  ? 'READY WHEN YOU ARE'
+                  : 'ASSESSMENT SPACE'}
+            </div>
+          </div>
           <div className="boss-fight-header">
             <div>
               <span className="boss-fight-eyebrow">INDEPENDENT SKILL CHECK</span>
@@ -1624,38 +1843,149 @@ announceReaction(reaction)
 
           {bossFight?.status === 'in_progress' && (
             <div className="boss-fight-workspace">
-              <label htmlFor="boss-fight-attempt-type">Submission type</label>
-              <select
-                id="boss-fight-attempt-type"
-                value={bossFightAttemptType}
-                onChange={(event) => setBossFightAttemptType(
-                  event.target.value as 'code' | 'text' | 'answer',
+              <div className="boss-fight-conversation-intro">
+                <span className="boss-fight-conversation-avatar" aria-hidden="true">TE</span>
+                <div>
+                  <span className="boss-fight-label">LIVE TECHNICAL INTERVIEW</span>
+                  <p>
+                    Think aloud, explain trade-offs, and respond to follow-up
+                    questions. Your final implementation is submitted separately
+                    for evaluation.
+                  </p>
+                </div>
+              </div>
+
+              <div className="boss-fight-chat-heading">
+                <div>
+                  <span className="boss-fight-label">EXAMINER SESSION</span>
+                  <h3>Reason it through.</h3>
+                </div>
+                <span className="boss-fight-turn-count">
+                  {(bossFight.interview_transcript ?? []).filter(
+                    (turn) => turn.role === 'learner',
+                  ).length} answers
+                </span>
+              </div>
+
+              <div
+                className="boss-fight-chat-log"
+                aria-label="Boss Fight interview transcript"
+                aria-live="polite"
+              >
+                {!(bossFight.interview_transcript?.length) ? (
+                  <div className="boss-fight-chat-empty">
+                    <span className="boss-fight-chat-empty-mark" aria-hidden="true">B</span>
+                    <strong>Your examiner is ready.</strong>
+                    <p>
+                      Request the opening question to begin your conversation.
+                    </p>
+                    <button
+                      type="button"
+                      className="boss-fight-secondary"
+                      onClick={continueBossFightInterview}
+                      disabled={bossFightBusy}
+                    >
+                      {bossFightBusy ? 'Connecting?' : 'Get opening question'}
+                    </button>
+                  </div>
+                ) : (
+                  bossFight.interview_transcript.map((turn, index) => (
+                    <article
+                      className={`boss-fight-chat-message ${
+                        turn.role === 'learner'
+                          ? 'boss-fight-chat-message-learner'
+                          : 'boss-fight-chat-message-examiner'
+                      }`}
+                      key={`${turn.timestamp ?? 'turn'}-${index}`}
+                    >
+                      <span className="boss-fight-chat-role">
+                        {turn.role === 'learner' ? 'YOU' : 'THE TECHNICAL EXAMINER'}
+                      </span>
+                      <BossFightMessage content={turn.content} />
+                    </article>
+                  ))
                 )}
-                disabled={bossFightBusy}
-              >
-                <option value="code">Code / implementation</option>
-                <option value="text">Written explanation</option>
-                <option value="answer">Short answer</option>
-              </select>
+                {bossFightBusy && (
+                  <div className="boss-fight-thinking" role="status">
+                    <span />
+                    <span />
+                    <span />
+                    <p>The examiner is considering your response?</p>
+                  </div>
+                )}
+              </div>
 
-              <label htmlFor="boss-fight-response">Your solution and evidence</label>
-              <textarea
-                id="boss-fight-response"
-                value={bossFightResponse}
-                onChange={(event) => setBossFightResponse(event.target.value)}
-                placeholder="Describe or paste your solution. Include enough detail to demonstrate your reasoning and the result."
-                rows={9}
-                disabled={bossFightBusy}
-              />
+              <div className="boss-fight-chat-composer">
+                <label htmlFor="boss-fight-draft">Your response to the examiner</label>
+                <textarea
+                  id="boss-fight-draft"
+                  value={bossFightDraft}
+                  onChange={(event) => setBossFightDraft(event.target.value)}
+                  placeholder="Explain your reasoning, answer the question, or discuss a trade-off?"
+                  rows={4}
+                  disabled={bossFightBusy}
+                />
+                <div className="boss-fight-composer-actions">
+                  <span>Be specific. The examiner may ask you to go deeper.</span>
+                  <button
+                    type="button"
+                    className="boss-fight-primary"
+                    onClick={continueBossFightInterview}
+                    disabled={
+                      bossFightBusy ||
+                      !(bossFight.interview_transcript?.length) ||
+                      !bossFightDraft.trim()
+                    }
+                  >
+                    {bossFightBusy ? 'Thinking?' : 'Send response'}
+                  </button>
+                </div>
+              </div>
 
-              <button
-                type="button"
-                className="boss-fight-primary"
-                onClick={evaluateBossFight}
-                disabled={bossFightBusy || !bossFightResponse.trim()}
-              >
-                {bossFightBusy ? 'Evaluating…' : 'Submit for Evaluation'}
-              </button>
+              <div className="boss-fight-final-evidence">
+                <div className="boss-fight-final-evidence-heading">
+                  <span className="boss-fight-label">FINAL SUBMISSION</span>
+                  <h3>Show the work.</h3>
+                  <p>
+                    When you are ready, provide the implementation or written
+                    evidence that should be assessed. Interview messages alone
+                    are not treated as your final solution.
+                  </p>
+                </div>
+
+                <label htmlFor="boss-fight-attempt-type">Evidence format</label>
+                <select
+                  id="boss-fight-attempt-type"
+                  value={bossFightAttemptType}
+                  onChange={(event) => setBossFightAttemptType(
+                    event.target.value as 'code' | 'text' | 'answer',
+                  )}
+                  disabled={bossFightBusy}
+                >
+                  <option value="code">Code / implementation</option>
+                  <option value="text">Written explanation</option>
+                  <option value="answer">Short answer</option>
+                </select>
+
+                <label htmlFor="boss-fight-response">Your solution and evidence</label>
+                <textarea
+                  id="boss-fight-response"
+                  value={bossFightResponse}
+                  onChange={(event) => setBossFightResponse(event.target.value)}
+                  placeholder="Paste your final code or explain the completed solution, including key decisions and results."
+                  rows={9}
+                  disabled={bossFightBusy}
+                />
+
+                <button
+                  type="button"
+                  className="boss-fight-primary"
+                  onClick={evaluateBossFight}
+                  disabled={bossFightBusy || !bossFightResponse.trim()}
+                >
+                  {bossFightBusy ? 'Evaluating?' : 'Finish Interview & Evaluate'}
+                </button>
+              </div>
             </div>
           )}
 

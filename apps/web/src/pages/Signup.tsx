@@ -2,56 +2,71 @@ import { Link } from 'react-router-dom'
 
 export default function Signup() {
   return (
-    <main className="auth-page">
-      <div className="auth-card">
-        <Link to="/" className="auth-brand">
+    <main className="auth-page auth-page--split">
+      <div className="auth-layout">
+        <aside className="auth-visual">
           <img
-            src="/brand/master-it-by-doing.png"
-            alt="Master It By Doing"
+            src="/images/auth/auth-learning-visual-ms_01.jpg"
+            alt="A visual representation of learning through practice"
           />
-          <span>Master It By Doing</span>
-        </Link>
+          <div className="auth-visual-copy">
+            <span className="auth-visual-kicker">YOUR NEXT CHAPTER</span>
+            <h2>Turn what you learn into what you can do.</h2>
+            <p>Learn. Build. Prove. Advance.</p>
+          </div>
+        </aside>
 
-        <h1>Start mastering</h1>
-
-        <p>
-          Create your account and begin learning through action.
-        </p>
-
-        <form>
-          <label>
-            Name
-            <input
-              type="text"
-              placeholder="Your name"
+        <section className="auth-card auth-content">
+          <Link to="/" className="auth-brand">
+            <img
+              src="/brand/master-it-by-doing.png"
+              alt="Master It By Doing"
             />
-          </label>
+            <span>Master It By Doing</span>
+          </Link>
 
-          <label>
-            Email
-            <input
-              type="email"
-              placeholder="you@example.com"
-            />
-          </label>
+          <span className="auth-form-kicker">START YOUR JOURNEY</span>
+          <h1>Start mastering</h1>
 
-          <label>
-            Password
-            <input
-              type="password"
-              placeholder="Create a password"
-            />
-          </label>
+          <p>
+            Create your account and begin learning through action.
+          </p>
 
-          <button type="submit" className="primary-btn">
-            Create account
-          </button>
-        </form>
+          <form>
+            <label>
+              Name
+              <input
+                type="text"
+                placeholder="Your name"
+              />
+            </label>
 
-        <p className="auth-footer">
-          Already have an account?{' '}
-          <Link to="/login">Sign in</Link>
-        </p>
+            <label>
+              Email
+              <input
+                type="email"
+                placeholder="you@example.com"
+              />
+            </label>
+
+            <label>
+              Password
+              <input
+                type="password"
+                placeholder="Create a password"
+              />
+            </label>
+
+            <button type="submit" className="primary-btn">
+              Create account
+            </button>
+          </form>
+
+          <p className="auth-footer">
+            Already have an account?{' '}
+            <Link to="/login">Sign in</Link>
+          </p>
+        </section>
       </div>
     </main>
   )
